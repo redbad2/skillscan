@@ -14,6 +14,11 @@ from src.config import get_settings, RiskLevel
 from src.analyzers.static_analyzer import StaticAnalyzer
 from src.analyzers.llm_analyzer import LLMAnalyzer
 
+try:
+    from src.config.llm_config_manager import llm_config_manager
+except ImportError:
+    llm_config_manager = None
+
 
 class HybridAnalyzer:
     """混合分类分析器"""
@@ -48,8 +53,10 @@ class HybridAnalyzer:
         start_time = datetime.utcnow()
         all_vulnerabilities: List[Dict[str, Any]] = []
 
-        # 获取 LLM 配置
-        llm_config = self.settings.get_llm_config()
+        if llm_config_manager is not None:
+            llm_config = llm_config_manager.get_config()
+        else:
+            llm_config = self.settings.get_llm_config()
 
         # 第一阶段：静态分析（高召回率）
         logger.debug(f"Running static analysis for {skill_id}")

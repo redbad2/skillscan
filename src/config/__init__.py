@@ -36,6 +36,11 @@ from src.config.validator import (
     validate_all,
 )
 
+from src.config.llm_config_manager import (
+    LLMConfigManager,
+    llm_config_manager,
+)
+
 
 # Copy constants from src/config.py to avoid circular imports
 class VulnerabilityCategory:
@@ -150,6 +155,9 @@ __all__ = [
     "validate_database_config",
     "validate_llm_config",
     "validate_all",
+    # LLM Config Manager
+    "LLMConfigManager",
+    "llm_config_manager",
     # Constants
     "VulnerabilityCategory",
     "VulnerabilityPattern",

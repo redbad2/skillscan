@@ -4,6 +4,7 @@ LLM语义分析模块
 集成大语言模型进行语义理解，检测提示注入、混淆代码等需要语义分析的威胁。
 支持多种LLM提供商（OpenAI、Anthropic，开源模型）。
 支持从 YAML 配置文件加载提示词模板和分析参数。
+支持配置热更新。
 """
 
 import re
@@ -15,6 +16,11 @@ from datetime import datetime
 from loguru import logger
 
 from src.config import get_settings, VulnerabilityPattern, Severity
+
+try:
+    from src.config.llm_config_manager import llm_config_manager
+except ImportError:
+    llm_config_manager = None
 
 
 class LLMAnalyzer:
@@ -33,7 +39,10 @@ class LLMAnalyzer:
 
     def reload_config(self) -> None:
         """重新加载配置"""
-        self._config = self.settings.get_llm_config()
+        if llm_config_manager is not None:
+            self._config = llm_config_manager.get_config()
+        else:
+            self._config = self.settings.get_llm_config()
 
     @property
     def analysis_config(self) -> Dict[str, Any]:

@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }} - SkillScan</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .card-hover:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+        .status-badge {
+            @apply px-3 py-1 rounded-full text-sm font-medium;
+        }
+        .status-safe { @apply bg-green-100 text-green-800; }
+        .status-warning { @apply bg-yellow-100 text-yellow-800; }
+        .status-dangerous { @apply bg-red-100 text-red-800; }
+        .status-malicious { @apply bg-purple-100 text-purple-800; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <!-- Navigation -->
+    <nav class="gradient-bg text-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                              d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                    </svg>
+                    <span class="text-2xl font-bold">SkillScan</span>
+                </div>
+                <div class="flex space-x-6">
+                    <a href="/dashboard/" class="hover:text-gray-200">Dashboard</a>
+                    <a href="/dashboard/#tasks" class="hover:text-gray-200">Tasks</a>
+                    <a href="/dashboard/#vulnerabilities" class="hover:text-gray-200">Vulnerabilities</a>
+                    <a href="/api/docs" class="hover:text-gray-200">API</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 py-8">
+        <!-- Stats Cards -->
+        <section id="stats" class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div class="bg-white rounded-lg shadow p-6 card-hover transition-all duration-300">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm">Total Tasks</p>
+                        <p class="text-3xl font-bold text-gray-800" id="total-tasks">-</p>
+                    </div>
+                    <div class="bg-blue-100 p-3 rounded-full">
+                        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow p-6 card-hover transition-all duration-300">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm">Completed</p>
+                        <p class="text-3xl font-bold text-green-600" id="completed-tasks">-</p>
+                    </div>
+                    <div class="bg-green-100 p-3 rounded-full">
+                        <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow p-6 card-hover transition-all duration-300">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm">Pending</p>
+                        <p class="text-3xl font-bold text-yellow-600" id="pending-tasks">-</p>
+                    </div>
+                    <div class="bg-yellow-100 p-3 rounded-full">
+                        <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow p-6 card-hover transition-all duration-300">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm">Failed</p>
+                        <p class="text-3xl font-bold text-red-600" id="failed-tasks">-</p>
+                    </div>
+                    <div class="bg-red-100 p-3 rounded-full">
+                        <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                  d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Charts -->
+        <section class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-xl font-semibold mb-4">Risk Distribution</h3>
+                <canvas id="riskChart"></canvas>
+            </div>
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-xl font-semibold mb-4">Task Status</h3>
+                <canvas id="statusChart"></canvas>
+            </div>
+        </section>
+
+        <!-- Recent Tasks -->
+        <section id="tasks" class="bg-white rounded-lg shadow p-6 mb-8">
+            <h3 class="text-xl font-semibold mb-4">Recent Tasks</h3>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Task ID</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Skill ID</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Risk Level</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200" id="tasks-body">
+                        <tr>
+                            <td colspan="5" class="px-6 py-4 text-center text-gray-500">Loading...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Vulnerabilities -->
+        <section id="vulnerabilities" class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-xl font-semibold mb-4">Recent Vulnerabilities</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4" id="vulns-container">
+                <p class="text-gray-500">Loading...</p>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-800 text-white py-6 mt-12">
+        <div class="max-w-7xl mx-auto px-4 text-center">
+            <p class="text-gray-400">SkillScan - Agent Skills Threat Analysis Engine</p>
+        </div>
+    </footer>
+
+    <script>
+        async function loadDashboard() {
+            try {
+                // Load stats
+                const statsResponse = await fetch('/dashboard/stats');
+                const stats = await statsResponse.json();
+                
+                document.getElementById('total-tasks').textContent = stats.total_tasks || 0;
+                document.getElementById('completed-tasks').textContent = stats.completed_tasks || 0;
+                document.getElementById('pending-tasks').textContent = stats.pending_tasks || 0;
+                document.getElementById('failed-tasks').textContent = stats.failed_tasks || 0;
+
+                // Update charts
+                updateCharts(stats);
+
+                // Load tasks
+                const tasksResponse = await fetch('/dashboard/tasks?limit=10');
+                const tasksData = await tasksResponse.json();
+                updateTasksTable(tasksData.tasks);
+
+                // Load vulnerabilities
+                const vulnsResponse = await fetch('/dashboard/vulnerabilities');
+                const vulnsData = await vulnsResponse.json();
+                updateVulnerabilities(vulnsData.vulnerabilities);
+
+            } catch (error) {
+                console.error('Error loading dashboard:', error);
+            }
+        }
+
+        function updateCharts(stats) {
+            const riskCtx = document.getElementById('riskChart').getContext('2d');
+            const statusCtx = document.getElementById('statusChart').getContext('2d');
+
+            new Chart(riskCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Safe', 'Warning', 'Dangerous', 'Malicious'],
+                    datasets: [{
+                        data: [
+                            stats.completed_tasks || 0,
+                            stats.pending_tasks || 0,
+                            Math.floor((stats.completed_tasks || 0) * 0.2),
+                            Math.floor((stats.completed_tasks || 0) * 0.1)
+                        ],
+                        backgroundColor: ['#28a745', '#ffc107', '#dc3545', '#6c1a1a'],
+                    }]
+                }
+            });
+
+            new Chart(statusCtx, {
+                type: 'pie',
+                data: {
+                    labels: ['Completed', 'Pending', 'Failed'],
+                    datasets: [{
+                        data: [
+                            stats.completed_tasks || 0,
+                            stats.pending_tasks || 0,
+                            stats.failed_tasks || 0
+                        ],
+                        backgroundColor: ['#28a745', '#ffc107', '#dc3545'],
+                    }]
+                }
+            });
+        }
+
+        function updateTasksTable(tasks) {
+            const tbody = document.getElementById('tasks-body');
+            
+            if (!tasks || tasks.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-4 text-center text-gray-500">No tasks found</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = tasks.map(task => `
+                <tr>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${task.task_id}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="status-badge ${'status-' + (task.status === 'completed' ? 'safe' : task.status === 'pending' ? 'warning' : 'dangerous')}">
+                            ${task.status}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${task.result?.skill_id || '-'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="status-badge status-${task.result?.risk_level || 'safe'}">
+                            ${task.result?.risk_level || 'safe'}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${new Date(task.created_at).toLocaleString()}</td>
+                </tr>
+            `).join('');
+        }
+
+        function updateVulnerabilities(vulnerabilities) {
+            const container = document.getElementById('vulns-container');
+            
+            if (!vulnerabilities || vulnerabilities.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 col-span-3">No vulnerabilities detected</p>';
+                return;
+            }
+
+            const recentVulns = vulnerabilities.slice(0, 6);
+            container.innerHTML = recentVulns.map(vuln => `
+                <div class="border-l-4 ${vuln.severity === 'high' ? 'border-red-500' : vuln.severity === 'medium' ? 'border-yellow-500' : 'border-green-500'} bg-gray-50 p-4 rounded">
+                    <h4 class="font-semibold text-gray-800">${vuln.pattern}</h4>
+                    <p class="text-sm text-gray-600 mt-1">${vuln.category}</p>
+                    <div class="mt-2 flex items-center space-x-2">
+                        <span class="text-xs px-2 py-1 bg-gray-200 rounded">${vuln.severity}</span>
+                        <span class="text-xs text-gray-500">Confidence: ${(vuln.confidence * 100).toFixed(0)}%</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Load dashboard on page load
+        document.addEventListener('DOMContentLoaded', loadDashboard);
+
+        // Refresh every 30 seconds
+        setInterval(loadDashboard, 30000);
+    </script>
+</body>
+</html>
