@@ -33,6 +33,8 @@ SkillScan 是一个用于自动化扫描和分析 Agent Skills 安全性的威�
 
 ## 快速开始
 
+> **详细部署文档**: 请查看 [部署指南](./docs/DEPLOYMENT.md)
+
 ### 环境要求
 
 - Python 3.10+
@@ -55,6 +57,8 @@ cp .env.example .env
 ```
 
 ### Docker 部署
+
+详细说明请查看 [部署指南 - Docker Compose 部署](./docs/DEPLOYMENT.md#方式一docker-compose-部署推荐)
 
 ```bash
 # 使用 Docker Compose 启动所有服务
@@ -139,6 +143,7 @@ skillscan/
 │   └── test_integration.py
 ├── scripts/                 # 工具脚本
 ├── docs/                    # 文档
+│   └── DEPLOYMENT.md       # 部署指南
 ├── docker-compose.yml
 ├── Dockerfile
 ├── requirements.txt
