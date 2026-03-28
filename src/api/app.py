@@ -34,6 +34,11 @@ except ImportError:
     llm_config_manager = None
 
 try:
+    from src.rules.rule_config_manager import rule_config_manager
+except ImportError:
+    rule_config_manager = None
+
+try:
     from src.dashboard.routes import dashboard_router
 
     HAS_DASHBOARD = True
@@ -164,11 +169,57 @@ class ConfigVersionResponse(BaseModel):
 
 
 class ConfigDiffResponse(BaseModel):
-    """配置差异响应模型"""
+    """配置 diff响应模型"""
 
     version1: str
     version2: str
     changes: List[Dict[str, Any]]
+
+
+class RuleCreate(BaseModel):
+    """规则创建模型"""
+
+    rule_id: str
+    pattern_code: str
+    language: str
+    name: str
+    description: str
+    patterns: List[str]
+    severity: str = "medium"
+    category: str = ""
+    enabled: bool = True
+
+
+class RuleUpdate(BaseModel):
+    """规则更新模型"""
+
+    name: Optional[str] = None
+    description: Optional[str] = None
+    patterns: Optional[List[str]] = None
+    severity: Optional[str] = None
+    category: Optional[str] = None
+    enabled: Optional[bool] = None
+
+
+class RuleTestRequest(BaseModel):
+    """规则测试请求模型"""
+
+    rule_id: Optional[str] = None
+    rule: Optional[Dict[str, Any]] = None
+    test_content: str
+
+
+class RuleFeedbackRequest(BaseModel):
+    """规则反馈模型"""
+
+    rule_id: str
+    true_positive: bool
+
+
+class ThresholdUpdate(BaseModel):
+    """阈值更新模型"""
+
+    thresholds: Dict[str, float]
 
 
 # 创建FastAPI应用
@@ -658,6 +709,350 @@ async def get_rate_limit_status():
         raise HTTPException(status_code=503, detail="LLM Config Manager not available")
 
     return llm_config_manager.get_rate_limit_status()
+
+
+@app.get("/api/v1/config/rules")
+async def list_rules(
+    enabled_only: bool = Query(False, description="Only return enabled rules"),
+    language: Optional[str] = Query(None, description="Filter by language"),
+    category: Optional[str] = Query(None, description="Filter by category"),
+):
+    """获取规则列表"""
+    if rule_config_manager is None:
+        raise HTTPException(status_code=503, detail="Rule Config Manager not available")
+
+    rules = rule_config_manager.get_all_rules(enabled_only=enabled_only)
+
+    if language:
+        rules = [r for r in rules if r.get("language") == language]
+    if category:
+        rules = [r for r in rules if r.get("category") == category]
+
+    return {"rules": rules, "total": len(rules)}
+
+
+@app.post("/api/v1/config/rules")
+async def create_rule(rule: RuleCreate):
+    """创建新规则"""
+    if rule_config_manager is None:
+        raise HTTPException(status_code=503, detail="Rule Config Manager not available")
+
+    from src.rules.rule_config_manager import RuleConfigManager
+
+    manager = rule_config_manager
+
+    result = manager.create_rule(
+        rule_id=rule.rule_id,
+        pattern_code=rule.pattern_code,
+        language=rule.language,
+        name=rule.name,
+        description=rule.description,
+        patterns=rule.patterns,
+        severity=rule.severity,
+        category=rule.category,
+        enabled=rule.enabled,
+    )
+
+    if not result:
+        raise HTTPException(
+            status_code=400, detail="Failed to create rule (rule_id may already exist)"
+        )
+
+    return {"success": True, "rule_id": rule.rule_id, "message": "Rule created successfully"}
+
+
+@app.get("/api/v1/config/rules/{rule_id}")
+async def get_rule(rule_id: str):
+    """获取指定规则"""
+    if rule_config_manager is None:
+        raise HTTPException(status_code=503, detail="Rule Config Manager not available")
+
+    rule = rule_config_manager.get_rule(rule_id)
+    if rule is None:
+        raise HTTPException(status_code=404, detail=f"Rule '{rule_id}' not found")
+
+    return rule
+
+
+@app.put("/api/v1/config/rules/{rule_id}")
+async def update_rule(rule_id: str, update: RuleUpdate):
+    """更新规则"""
+    if rule_config_manager is None:
+        raise HTTPException(status_code=503, detail="Rule Config Manager not available")
+
+    result = rule_config_manager.update_rule(rule_id, update.model_dump(exclude_none=True))
+    if not result:
+        raise HTTPException(status_code=404, detail=f"Rule '{rule_id}' not found")
+
+    return {"success": True, "rule_id": rule_id, "message": "Rule updated successfully"}
+
+
+@app.delete("/api/v1/config/rules/{rule_id}")
+async def delete_rule(rule_id: str):
+    """删除规则"""
+    if rule_config_manager is None:
+        raise HTTPException(status_code=503, detail="Rule Config Manager not available")
+
+    success = rule_config_manager.delete_rule(rule_id)
+    if not success:
+        raise HTTPException(status_code=404, detail=f"Rule '{rule_id}' not found")
+
+    return {"success": True, "rule_id": rule_id, "message": "Rule deleted successfully"}
+
+
+@app.get("/api/v1/config/rules/language/{language}")
+async def get_rules_by_language(language: str):
+    """按语言获取规则"""
+    if rule_config_manager is None:
+        raise HTTPException(status_code=503, detail="Rule Config Manager not available")
+
+    rules = rule_config_manager.get_rules_by_language(language)
+    return {"language": language, "rules": rules, "total": len(rules)}
+
+
+@app.patch("/api/v1/config/rules/{rule_id}/enable")
+async def toggle_rule(
+    rule_id: str, enabled: bool = Query(..., description="Enable or disable rule")
+):
+    """启用/禁用规则"""
+    if rule_config_manager is None:
+        raise HTTPException(status_code=503, detail="Rule Config Manager not available")
+
+    success = rule_config_manager.enable_rule(rule_id, enabled)
+    if not success:
+        raise HTTPException(status_code=404, detail=f"Rule '{rule_id}' not found")
+
+    return {"success": True, "rule_id": rule_id, "enabled": enabled}
+
+
+@app.get("/api/v1/config/rules/thresholds")
+async def get_thresholds():
+    """获取语言阈值配置"""
+    if rule_config_manager is None:
+        raise HTTPException(status_code=503, detail="Rule Config Manager not available")
+
+    return {"thresholds": rule_config_manager.get_all_thresholds()}
+
+
+@app.patch("/api/v1/config/rules/thresholds")
+async def update_thresholds(thresholds: ThresholdUpdate):
+    """更新语言阈值"""
+    if rule_config_manager is None:
+        raise HTTPException(status_code=503, detail="Rule Config Manager not available")
+
+    for lang, threshold in thresholds.thresholds.items():
+        rule_config_manager.set_language_threshold(lang, threshold)
+
+    return {"success": True, "thresholds": rule_config_manager.get_all_thresholds()}
+
+
+@app.get("/api/v1/config/rules/versions")
+async def list_rule_versions(limit: int = Query(10, ge=1, le=100)):
+    """获取规则版本历史"""
+    if rule_config_manager is None:
+        raise HTTPException(status_code=503, detail="Rule Config Manager not available")
+
+    return {"versions": rule_config_manager.get_versions(limit)}
+
+
+@app.get("/api/v1/config/rules/versions/{version_id}")
+async def get_rule_version(version_id: str):
+    """获取指定规则版本"""
+    if rule_config_manager is None:
+        raise HTTPException(status_code=503, detail="Rule Config Manager not available")
+
+    version = rule_config_manager.get_version(version_id)
+    if version is None:
+        raise HTTPException(status_code=404, detail=f"Version '{version_id}' not found")
+
+    return version
+
+
+@app.post("/api/v1/config/rules/versions/{version_id}/rollback")
+async def rollback_rule_version(version_id: str):
+    """回滚到指定规则版本"""
+    if rule_config_manager is None:
+        raise HTTPException(status_code=503, detail="Rule Config Manager not available")
+
+    success = rule_config_manager.rollback_version(version_id)
+    if not success:
+        raise HTTPException(status_code=400, detail=f"Failed to rollback to version: {version_id}")
+
+    return {
+        "success": True,
+        "version_id": version_id,
+        "message": f"Rolled back to version '{version_id}'",
+    }
+
+
+@app.get("/api/v1/config/rules/versions/diff")
+async def diff_rule_versions(
+    version_id1: str = Query(..., description="First version ID"),
+    version_id2: str = Query(..., description="Second version ID"),
+):
+    """比较两个规则版本的差异"""
+    if rule_config_manager is None:
+        raise HTTPException(status_code=503, detail="Rule Config Manager not available")
+
+    version1 = rule_config_manager.get_version(version_id1)
+    version2 = rule_config_manager.get_version(version_id2)
+
+    if version1 is None or version2 is None:
+        raise HTTPException(status_code=404, detail="One or both versions not found")
+
+    changes = []
+    rules1 = {r["rule_id"]: r for r in version1.get("rules", [])}
+    rules2 = {r["rule_id"]: r for r in version2.get("rules", [])}
+
+    all_ids = set(rules1.keys()) | set(rules2.keys())
+    for rule_id in all_ids:
+        if rule_id in rules1 and rule_id not in rules2:
+            changes.append({"rule_id": rule_id, "change": "removed"})
+        elif rule_id not in rules1 and rule_id in rules2:
+            changes.append({"rule_id": rule_id, "change": "added"})
+        elif rules1[rule_id] != rules2[rule_id]:
+            changes.append(
+                {
+                    "rule_id": rule_id,
+                    "change": "modified",
+                    "before": rules1[rule_id],
+                    "after": rules2[rule_id],
+                }
+            )
+
+    return {"version1": version_id1, "version2": version_id2, "changes": changes}
+
+
+@app.post("/api/v1/config/rules/versions")
+async def create_rule_version(comment: str = Query("", description="Version comment")):
+    """创建规则版本快照"""
+    if rule_config_manager is None:
+        raise HTTPException(status_code=503, detail="Rule Config Manager not available")
+
+    version = rule_config_manager.create_version(comment=comment)
+    return {
+        "success": True,
+        "version_id": version.version_id,
+        "created_at": version.created_at.isoformat(),
+    }
+
+
+@app.get("/api/v1/config/rules/templates")
+async def list_templates():
+    """获取规则模板列表"""
+    if rule_config_manager is None:
+        raise HTTPException(status_code=503, detail="Rule Config Manager not available")
+
+    return {"templates": rule_config_manager.get_templates()}
+
+
+@app.post("/api/v1/config/rules/templates/{template_id}/apply")
+async def apply_template(template_id: str):
+    """应用规则模板"""
+    if rule_config_manager is None:
+        raise HTTPException(status_code=503, detail="Rule Config Manager not available")
+
+    success = rule_config_manager.apply_template(template_id)
+    if not success:
+        raise HTTPException(status_code=404, detail=f"Template '{template_id}' not found")
+
+    return {
+        "success": True,
+        "template_id": template_id,
+        "message": f"Template '{template_id}' applied",
+    }
+
+
+@app.get("/api/v1/config/rules/statistics")
+async def get_rule_statistics():
+    """获取规则统计信息"""
+    if rule_config_manager is None:
+        raise HTTPException(status_code=503, detail="Rule Config Manager not available")
+
+    return rule_config_manager.get_statistics()
+
+
+@app.get("/api/v1/config/rules/effectiveness")
+async def get_effectiveness():
+    """获取规则效果统计"""
+    if rule_config_manager is None:
+        raise HTTPException(status_code=503, detail="Rule Config Manager not available")
+
+    return rule_config_manager.get_effectiveness_stats()
+
+
+@app.get("/api/v1/config/rules/effectiveness/by-category")
+async def get_effectiveness_by_category():
+    """按分类获取规则效果"""
+    if rule_config_manager is None:
+        raise HTTPException(status_code=503, detail="Rule Config Manager not available")
+
+    return rule_config_manager.get_effectiveness_by_category()
+
+
+@app.post("/api/v1/config/rules/effectiveness/feedback")
+async def record_feedback(feedback: RuleFeedbackRequest):
+    """记录规则反馈"""
+    if rule_config_manager is None:
+        raise HTTPException(status_code=503, detail="Rule Config Manager not available")
+
+    if feedback.true_positive:
+        rule_config_manager.record_true_positive(feedback.rule_id)
+    else:
+        rule_config_manager.record_false_positive(feedback.rule_id)
+
+    return {"success": True, "rule_id": feedback.rule_id, "true_positive": feedback.true_positive}
+
+
+@app.post("/api/v1/config/rules/validate")
+async def validate_rule(rule: Dict[str, Any]):
+    """验证规则配置"""
+    if rule_config_manager is None:
+        raise HTTPException(status_code=503, detail="Rule Config Manager not available")
+
+    result = rule_config_manager.validate_rule(rule)
+    return result
+
+
+@app.post("/api/v1/config/rules/test")
+async def test_rule(request: RuleTestRequest):
+    """测试规则"""
+    if rule_config_manager is None:
+        raise HTTPException(status_code=503, detail="Rule Config Manager not available")
+
+    result = rule_config_manager.test_rule(
+        rule_id=request.rule_id, rule=request.rule, test_content=request.test_content
+    )
+    return result
+
+
+@app.post("/api/v1/config/rules/export")
+async def export_rules(format: str = Query("json", regex="^(json|yaml)$")):
+    """导出规则"""
+    if rule_config_manager is None:
+        raise HTTPException(status_code=503, detail="Rule Config Manager not available")
+
+    rules = rule_config_manager.export_rules(format=format)
+    return {"format": format, "data": rules}
+
+
+@app.post("/api/v1/config/rules/import")
+async def import_rules(
+    data: Dict[str, Any],
+    format: str = Query("json", regex="^(json|yaml)$"),
+    replace: bool = Query(False),
+):
+    """导入规则"""
+    if rule_config_manager is None:
+        raise HTTPException(status_code=503, detail="Rule Config Manager not available")
+
+    success = rule_config_manager.import_rules(
+        data.get("rules", []), format=format, replace=replace
+    )
+    if not success:
+        raise HTTPException(status_code=400, detail="Failed to import rules")
+
+    return {"success": True, "message": f"Imported {len(data.get('rules', []))} rules"}
 
 
 @app.post("/api/v1/scans/{task_id}/report")
