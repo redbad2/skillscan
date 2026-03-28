@@ -5,19 +5,17 @@ Manages all configuration options for the threat analysis engine.
 Supports loading from YAML files and environment variables.
 """
 
-import os
 import logging
+import os
 from pathlib import Path
-from typing import Optional, List, Dict, Any, Union
-from functools import lru_cache
+from typing import Any
 
-import yaml
-from pydantic import Field, field_validator, ValidationInfo
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from dotenv import load_dotenv
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from src.config.loader import ConfigLoader
-from src.config.validator import ConfigValidator, validate_all
+from src.config.validator import validate_all
 
 logger = logging.getLogger(__name__)
 
@@ -35,8 +33,8 @@ class MongoDBSettings(BaseSettings):
 
     uri: str = Field(default="mongodb://localhost:27017")
     database: str = Field(default="skillscan")
-    username: Optional[str] = Field(default=None)
-    password: Optional[str] = Field(default=None)
+    username: str | None = Field(default=None)
+    password: str | None = Field(default=None)
     auth_source: str = Field(default="admin")
     max_pool_size: int = Field(default=100)
     min_pool_size: int = Field(default=10)
@@ -48,7 +46,7 @@ class RedisSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="REDIS_", extra="ignore")
 
     url: str = Field(default="redis://localhost:6379/0")
-    password: Optional[str] = Field(default=None)
+    password: str | None = Field(default=None)
     max_connections: int = Field(default=50)
 
 
@@ -61,7 +59,7 @@ class CelerySettings(BaseSettings):
     result_backend: str = Field(default="redis://localhost:6379/1")
     task_serializer: str = Field(default="json")
     result_serializer: str = Field(default="json")
-    accept_content: List[str] = Field(default=["json"])
+    accept_content: list[str] = Field(default=["json"])
     timezone: str = Field(default="UTC")
     enable_utc: bool = Field(default=True)
 
@@ -71,9 +69,9 @@ class LLMSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="LLM_", extra="ignore")
 
-    openai_api_key: Optional[str] = Field(default=None)
+    openai_api_key: str | None = Field(default=None)
     openai_model: str = Field(default="gpt-4-turbo-preview")
-    anthropic_api_key: Optional[str] = Field(default=None)
+    anthropic_api_key: str | None = Field(default=None)
     anthropic_model: str = Field(default="claude-3-opus-20240229")
     max_tokens: int = Field(default=4000)
     temperature: float = Field(default=0.1)
@@ -98,6 +96,10 @@ class CollectorSettings(BaseSettings):
     clawhub_api_url: str = Field(default="https://api.clawhub.com/v1")
     smithery_api_url: str = Field(default="https://api.smithery.ai/v1")
     skillssh_api_url: str = Field(default="https://api.skills.sh/v1")
+    skillsmp_api_url: str = Field(default="https://skillsmp.com/api/v1")
+    skillsmp_api_key: str | None = Field(default=None)
+    agentskillhub_api_url: str = Field(default="https://agentskillhub.dev/api/v1")
+    aiskillstore_api_url: str = Field(default="https://skillstore.io/api")
 
 
 class AnalyzerSettings(BaseSettings):
@@ -116,7 +118,7 @@ class AnalyzerSettings(BaseSettings):
     confidence_threshold: float = Field(default=0.6)
     override_threshold: float = Field(default=0.8)
 
-    supported_languages: List[str] = Field(default=["en", "zh", "ja", "ko", "mixed"])
+    supported_languages: list[str] = Field(default=["en", "zh", "ja", "ko", "mixed"])
 
 
 class APISettings(BaseSettings):
@@ -127,8 +129,8 @@ class APISettings(BaseSettings):
     host: str = Field(default="0.0.0.0")
     port: int = Field(default=8000)
     workers: int = Field(default=4)
-    api_key: Optional[str] = Field(default=None)
-    cors_origins: List[str] = Field(default=["*"])
+    api_key: str | None = Field(default=None)
+    cors_origins: list[str] = Field(default=["*"])
     rate_limit: int = Field(default=100)
     rate_limit_window: int = Field(default=60)
 
@@ -193,8 +195,8 @@ class Settings(BaseSettings):
     performance: PerformanceSettings = PerformanceSettings()
     logging: LoggingSettings = LoggingSettings()
 
-    _yaml_config: Dict[str, Any] = {}
-    _config_loader: Optional[ConfigLoader] = None
+    _yaml_config: dict[str, Any] = {}
+    _config_loader: ConfigLoader | None = None
 
     @field_validator("data_dir", "logs_dir", "temp_dir", mode="before")
     @classmethod
@@ -205,23 +207,23 @@ class Settings(BaseSettings):
         return path
 
     @property
-    def yaml_config(self) -> Dict[str, Any]:
+    def yaml_config(self) -> dict[str, Any]:
         """Get YAML configuration."""
         if not self._yaml_config:
             self.load_yaml_config()
         return self._yaml_config
 
     @property
-    def database_yaml(self) -> Dict[str, Any]:
+    def database_yaml(self) -> dict[str, Any]:
         """Get database YAML configuration."""
         return self.yaml_config.get("database", {})
 
     @property
-    def llm_yaml(self) -> Dict[str, Any]:
+    def llm_yaml(self) -> dict[str, Any]:
         """Get LLM YAML configuration."""
         return self.yaml_config.get("llm", {})
 
-    def load_yaml_config(self, config_dir: Optional[Union[str, Path]] = None) -> None:
+    def load_yaml_config(self, config_dir: str | Path | None = None) -> None:
         """
         Load configuration from YAML files.
 
@@ -251,7 +253,7 @@ class Settings(BaseSettings):
             self._config_loader.reload()
         self.load_yaml_config()
 
-    def get_mongodb_config(self) -> Dict[str, Any]:
+    def get_mongodb_config(self) -> dict[str, Any]:
         """
         Get MongoDB configuration merged from all sources.
 
@@ -280,7 +282,7 @@ class Settings(BaseSettings):
 
         return config
 
-    def get_redis_config(self) -> Dict[str, Any]:
+    def get_redis_config(self) -> dict[str, Any]:
         """Get Redis configuration merged from all sources."""
         config = {
             "enabled": self.redis.url != "",
@@ -296,7 +298,7 @@ class Settings(BaseSettings):
 
         return config
 
-    def get_celery_config(self) -> Dict[str, Any]:
+    def get_celery_config(self) -> dict[str, Any]:
         """Get Celery configuration merged from all sources."""
         config = {
             "enabled": False,
@@ -317,7 +319,7 @@ class Settings(BaseSettings):
 
         return config
 
-    def get_llm_config(self) -> Dict[str, Any]:
+    def get_llm_config(self) -> dict[str, Any]:
         """
         Get LLM configuration merged from all sources.
 

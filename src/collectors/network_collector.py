@@ -5,13 +5,11 @@
 """
 
 import asyncio
-import re
-from typing import Optional, List, Dict, Any, AsyncGenerator
 from datetime import datetime
-from urllib.parse import urljoin, urlparse
+from typing import Any
+from urllib.parse import urlparse
 
 import httpx
-from bs4 import BeautifulSoup
 from loguru import logger
 
 from src.collectors.base import BaseCollector, SkillSource, SourceChannel
@@ -40,18 +38,48 @@ class PlatformConfig:
             "skills_endpoint": "/skills",
             "skill_detail_endpoint": "/skills/{id}",
         },
+        "skillsmp": {
+            "base_url": "https://skillsmp.com",
+            "api_url": "https://skillsmp.com/api/v1",
+            "search_endpoint": "/skills/search",
+            "ai_search_endpoint": "/skills/ai-search",
+            "skill_detail_endpoint": "/skills/{id}",
+            "requires_auth": True,
+            "daily_limit": 500,
+        },
+        "agentskillhub": {
+            "base_url": "https://agentskillhub.dev",
+            "api_url": "https://agentskillhub.dev/api/v1",
+            "search_endpoint": "/search",
+            "skill_detail_endpoint": "/skills/{id}",
+            "requires_auth": False,
+        },
+        "aiskillstore": {
+            "base_url": "https://skillstore.io",
+            "api_url": "https://skillstore.io/api/v1",
+            "skills_endpoint": "/skills",
+            "skill_detail_endpoint": "/skills/{id}",
+            "requires_auth": False,
+        },
+        "skillhub": {
+            "base_url": "https://skillhub.ai",
+            "api_url": "https://skillhub.ai/api/v1",
+            "skills_endpoint": "/skills",
+            "skill_detail_endpoint": "/skills/{id}",
+            "requires_auth": False,
+        },
     }
 
 
 class NetworkCollector(BaseCollector):
     """网络爬取收集器"""
 
-    def __init__(self, db_manager=None, platforms: Optional[List[str]] = None):
+    def __init__(self, db_manager=None, platforms: list[str] | None = None):
         super().__init__(db_manager)
         self.settings = get_settings()
         self.platforms = platforms or list(PlatformConfig.PLATFORMS.keys())
-        self._client: Optional[httpx.AsyncClient] = None
-        self._rate_limiter = AsyncSemaphore(self.settings.crawl_rate_limit)
+        self._client: httpx.AsyncClient | None = None
+        self._rate_limiter = AsyncSemaphore(self.settings.collector.crawl_concurrency)
 
     @property
     def name(self) -> str:
@@ -79,7 +107,7 @@ class NetworkCollector(BaseCollector):
         if self._client and not self._client.is_closed:
             await self._client.aclose()
 
-    async def collect(self, limit: Optional[int] = None) -> List[SkillSource]:
+    async def collect(self, limit: int | None = None) -> list[SkillSource]:
         """
         从多个平台爬取技能文件
 
@@ -89,7 +117,7 @@ class NetworkCollector(BaseCollector):
         Returns:
             技能文件列表
         """
-        skills: List[SkillSource] = []
+        skills: list[SkillSource] = []
 
         logger.info(f"Starting network crawl for platforms: {self.platforms}")
 
@@ -107,15 +135,25 @@ class NetworkCollector(BaseCollector):
         return skills
 
     async def _collect_from_platform(
-        self, platform: str, limit: Optional[int] = None
-    ) -> List[SkillSource]:
+        self, platform: str, limit: int | None = None
+    ) -> list[SkillSource]:
         """从单个平台爬取技能"""
         if platform not in PlatformConfig.PLATFORMS:
             logger.warning(f"Unknown platform: {platform}")
             return []
 
+        # 使用平台特定的获取方法
+        if platform == "skillsmp":
+            return await self._fetch_skillsmp_skills(limit)
+        elif platform == "agentskillhub":
+            return await self._fetch_agentskillhub_skills(limit)
+        elif platform == "aiskillstore":
+            return await self._fetch_aiskillstore_skills(limit)
+        elif platform == "skillhub":
+            return await self._fetch_skillhub_skills(limit)
+
         config = PlatformConfig.PLATFORMS[platform]
-        skills: List[SkillSource] = []
+        skills: list[SkillSource] = []
 
         try:
             # 获取技能列表
@@ -129,7 +167,7 @@ class NetworkCollector(BaseCollector):
                         skills.append(skill)
 
                     # 避免过快请求
-                    await asyncio.sleep(1.0 / self.settings.crawl_rate_limit)
+                    await asyncio.sleep(1.0 / self.settings.crawl_concurrency)
 
         except Exception as e:
             logger.error(f"Error collecting from {platform}: {e}")
@@ -137,14 +175,20 @@ class NetworkCollector(BaseCollector):
         return skills
 
     async def _fetch_skill_list(
-        self, config: Dict[str, str], limit: Optional[int] = None
-    ) -> List[str]:
+        self, config: dict[str, str], limit: int | None = None
+    ) -> list[str]:
         """获取技能ID列表"""
         skill_ids = []
 
         try:
             client = await self._get_client()
-            url = config["api_url"] + config["skills_endpoint"]
+
+            # 根据平台选择合适的端点
+            if "search_endpoint" in config:
+                url = config["api_url"] + config["search_endpoint"]
+            else:
+                url = config["api_url"] + config["skills_endpoint"]
+
             params = {"limit": limit or 100, "offset": 0}
 
             while True:
@@ -161,6 +205,8 @@ class NetworkCollector(BaseCollector):
                     items = data
                 elif isinstance(data, dict):
                     items = data.get("items", data.get("skills", data.get("data", [])))
+                    if not items and "results" in data:
+                        items = data["results"]
                 else:
                     break
 
@@ -185,9 +231,472 @@ class NetworkCollector(BaseCollector):
 
         return skill_ids
 
+    async def _fetch_skillsmp_skills(self, limit: int | None = None) -> list[SkillSource]:
+        """从 SkillsMP 平台爬取技能"""
+        skills: list[SkillSource] = []
+
+        try:
+            client = await self._get_client()
+            config = PlatformConfig.PLATFORMS["skillsmp"]
+            api_key = self.settings.collector.skillsmp_api_key
+
+            url = config["api_url"] + config["search_endpoint"]
+
+            headers: dict[str, str] = {}
+            if api_key:
+                headers["Authorization"] = f"Bearer {api_key}"
+                logger.debug("Using SkillsMP API key for authenticated requests")
+            else:
+                logger.warning(
+                    "SkillsMP API key not configured. Set SKILLSMP_API_KEY env var. "
+                    "Search requests may be limited."
+                )
+
+            search_terms = ["security", "api", "web", "data", "cloud", "devops", "test", "code"]
+            total_fetched = 0
+
+            for term in search_terms:
+                if limit and total_fetched >= limit:
+                    break
+
+                params = {
+                    "q": term,
+                    "limit": min(limit or 50, 50),
+                    "sortBy": "popular",
+                }
+                page = 1
+
+                while page <= 5:
+                    if limit and total_fetched >= limit:
+                        break
+
+                    params["page"] = page
+                    response = await client.get(url, params=params, headers=headers)
+
+                    if response.status_code == 401:
+                        logger.error(
+                            "SkillsMP API authentication failed. Please check your API key."
+                        )
+                        return skills
+                    elif response.status_code == 400:
+                        error_msg = response.json().get("error", {}).get("message", "")
+                        logger.error(f"SkillsMP API error: {error_msg}")
+                        break
+                    elif response.status_code != 200:
+                        logger.warning(f"Failed to fetch from SkillsMP: {response.status_code}")
+                        break
+
+                    resp_data = response.json()
+                    data_container = resp_data.get("data", {})
+                    items = data_container.get("skills", [])
+                    pagination = data_container.get("pagination", {})
+
+                    if not items:
+                        break
+
+                    for item in items:
+                        if limit and total_fetched >= limit:
+                            break
+                        skill = self._parse_skillsmp_skill(item)
+                        if skill and await self.validate_source(skill):
+                            skills.append(skill)
+                            total_fetched += 1
+
+                    if not pagination.get("hasNext", False):
+                        break
+
+                    page += 1
+                    await asyncio.sleep(0.5)
+
+            logger.info(f"Collected {len(skills)} skills from SkillsMP")
+
+        except Exception as e:
+            logger.error(f"Error fetching from SkillsMP: {e}")
+
+        return skills[:limit] if limit else skills
+
+    def _parse_skillsmp_skill(self, data: dict[str, Any]) -> SkillSource | None:
+        """解析 SkillsMP 技能数据"""
+        try:
+            config = PlatformConfig.PLATFORMS["skillsmp"]
+
+            name = data.get("name", "unknown")
+            skill_id = data.get("id", name)
+            description = data.get("description", "")
+            github_url = data.get("githubUrl", "")
+            skill_url = data.get("skillUrl", "")
+            author = data.get("author", "")
+            stars = data.get("stars", 0)
+
+            content = data.get("skill_md") or data.get("content") or description or ""
+
+            scripts: list[dict[str, str]] = []
+            script_files = data.get("scripts", data.get("files", []))
+            for script in script_files:
+                if isinstance(script, dict):
+                    scripts.append(
+                        {
+                            "filename": script.get("name", script.get("filename", "")),
+                            "content": script.get("content", script.get("code", "")),
+                            "language": script.get(
+                                "language", self._detect_language(script.get("name", ""))
+                            ),
+                        }
+                    )
+
+            metadata = {
+                "author": author,
+                "description": description,
+                "github_url": github_url,
+                "stars": stars,
+                "version": data.get("version", "1.0.0"),
+                "permissions": data.get("permissions", []),
+                "triggers": data.get("triggers", []),
+                "tags": data.get("tags", []),
+                "source": "skillsmp",
+            }
+
+            file_size = len(content.encode("utf-8"))
+            for script in scripts:
+                file_size += len(script.get("content", "").encode("utf-8"))
+
+            source_path = skill_url or f"{config['base_url']}/skills/{skill_id}"
+
+            return SkillSource(
+                name=name,
+                content=content,
+                scripts=scripts,
+                source_path=source_path,
+                platform="skillsmp",
+                channel=SourceChannel.NETWORK_CRAWL,
+                file_size=file_size,
+                metadata=metadata,
+                collected_at=datetime.utcnow(),
+            )
+
+        except Exception as e:
+            logger.error(f"Error parsing SkillsMP skill data: {e}")
+            return None
+
+    async def _fetch_agentskillhub_skills(self, limit: int | None = None) -> list[SkillSource]:
+        """从 AgentSkillHub 平台爬取技能"""
+        skills: list[SkillSource] = []
+
+        try:
+            client = await self._get_client()
+            config = PlatformConfig.PLATFORMS["agentskillhub"]
+
+            url = config["api_url"] + config["search_endpoint"]
+            params = {"q": "", "limit": min(limit or 50, 50)}
+
+            page = 1
+            max_pages = 10 if not limit else (limit // 50) + 1
+
+            while page <= max_pages:
+                params["page"] = page
+                response = await client.get(url, params=params)
+
+                if response.status_code != 200:
+                    logger.warning(f"Failed to fetch from AgentSkillHub: {response.status_code}")
+                    break
+
+                data = response.json()
+                items = data.get("items", data.get("skills", data.get("results", [])))
+
+                if not items:
+                    break
+
+                for item in items:
+                    skill = self._parse_agentskillhub_skill(item)
+                    if skill and await self.validate_source(skill):
+                        skills.append(skill)
+
+                page += 1
+                await asyncio.sleep(1.0)
+
+                if limit and len(skills) >= limit:
+                    break
+
+            logger.info(f"Collected {len(skills)} skills from AgentSkillHub")
+
+        except Exception as e:
+            logger.error(f"Error fetching from AgentSkillHub: {e}")
+
+        return skills[:limit] if limit else skills
+
+    def _parse_agentskillhub_skill(self, data: dict[str, Any]) -> SkillSource | None:
+        """解析 AgentSkillHub 技能数据"""
+        try:
+            config = PlatformConfig.PLATFORMS["agentskillhub"]
+
+            name = data.get("name") or data.get("title", "unknown")
+            skill_id = data.get("id", name)
+
+            content = (
+                data.get("content")
+                or data.get("skill_md")
+                or data.get("description")
+                or data.get("readme", "")
+            )
+
+            scripts = []
+            for script in data.get("scripts", data.get("files", [])):
+                if isinstance(script, dict):
+                    scripts.append(
+                        {
+                            "filename": script.get("name", ""),
+                            "content": script.get("content", ""),
+                            "language": script.get(
+                                "language", self._detect_language(script.get("name", ""))
+                            ),
+                        }
+                    )
+
+            metadata = {
+                "author": data.get("author"),
+                "description": data.get("description"),
+                "version": data.get("version", "1.0.0"),
+                "permissions": data.get("permissions", []),
+                "triggers": data.get("triggers", []),
+                "tags": data.get("tags", []),
+                "source": "agentskillhub",
+            }
+
+            file_size = len(content.encode("utf-8"))
+            for script in scripts:
+                file_size += len(script.get("content", "").encode("utf-8"))
+
+            return SkillSource(
+                name=name,
+                content=content,
+                scripts=scripts,
+                source_path=f"{config['base_url']}/skills/{skill_id}",
+                platform="agentskillhub",
+                channel=SourceChannel.NETWORK_CRAWL,
+                file_size=file_size,
+                metadata=metadata,
+                collected_at=datetime.utcnow(),
+            )
+
+        except Exception as e:
+            logger.error(f"Error parsing AgentSkillHub skill data: {e}")
+            return None
+
+    async def _fetch_aiskillstore_skills(self, limit: int | None = None) -> list[SkillSource]:
+        """从 AISkillStore 平台爬取技能"""
+        skills: list[SkillSource] = []
+
+        try:
+            client = await self._get_client()
+            config = PlatformConfig.PLATFORMS["aiskillstore"]
+
+            url = config["api_url"] + config["skills_endpoint"]
+            params = {"limit": min(limit or 50, 50), "offset": 0}
+
+            while True:
+                response = await client.get(url, params=params)
+
+                if response.status_code != 200:
+                    logger.warning(f"Failed to fetch from AISkillStore: {response.status_code}")
+                    break
+
+                data = response.json()
+                items = data.get(
+                    "items", data.get("skills", data.get("results", data.get("data", [])))
+                )
+
+                if not items:
+                    break
+
+                for item in items:
+                    skill = self._parse_aiskillstore_skill(item)
+                    if skill and await self.validate_source(skill):
+                        skills.append(skill)
+
+                if len(items) < params["limit"]:
+                    break
+
+                params["offset"] += params["limit"]
+
+                if limit and len(skills) >= limit:
+                    break
+
+                await asyncio.sleep(1.0)
+
+            logger.info(f"Collected {len(skills)} skills from AISkillStore")
+
+        except Exception as e:
+            logger.error(f"Error fetching from AISkillStore: {e}")
+
+        return skills[:limit] if limit else skills
+
+    def _parse_aiskillstore_skill(self, data: dict[str, Any]) -> SkillSource | None:
+        """解析 AISkillStore 技能数据"""
+        try:
+            config = PlatformConfig.PLATFORMS["aiskillstore"]
+
+            name = data.get("name") or data.get("title", "unknown")
+            skill_id = data.get("id", name)
+
+            content = (
+                data.get("content")
+                or data.get("skill_md")
+                or data.get("description")
+                or data.get("readme", "")
+            )
+
+            scripts = []
+            for script in data.get("scripts", data.get("files", [])):
+                if isinstance(script, dict):
+                    scripts.append(
+                        {
+                            "filename": script.get("name", ""),
+                            "content": script.get("content", ""),
+                            "language": script.get(
+                                "language", self._detect_language(script.get("name", ""))
+                            ),
+                        }
+                    )
+
+            metadata = {
+                "author": data.get("author"),
+                "description": data.get("description"),
+                "version": data.get("version", "1.0.0"),
+                "permissions": data.get("permissions", []),
+                "triggers": data.get("triggers", []),
+                "tags": data.get("tags", []),
+                "source": "aiskillstore",
+            }
+
+            file_size = len(content.encode("utf-8"))
+            for script in scripts:
+                file_size += len(script.get("content", "").encode("utf-8"))
+
+            return SkillSource(
+                name=name,
+                content=content,
+                scripts=scripts,
+                source_path=f"{config['base_url']}/skills/{skill_id}",
+                platform="aiskillstore",
+                channel=SourceChannel.NETWORK_CRAWL,
+                file_size=file_size,
+                metadata=metadata,
+                collected_at=datetime.utcnow(),
+            )
+
+        except Exception as e:
+            logger.error(f"Error parsing AISkillStore skill data: {e}")
+            return None
+
+    async def _fetch_skillhub_skills(self, limit: int | None = None) -> list[SkillSource]:
+        """从 SkillHub 平台爬取技能"""
+        skills: list[SkillSource] = []
+
+        try:
+            client = await self._get_client()
+            config = PlatformConfig.PLATFORMS["skillhub"]
+
+            url = config["api_url"] + config["skills_endpoint"]
+            params = {"limit": min(limit or 50, 50), "offset": 0}
+
+            while True:
+                response = await client.get(url, params=params)
+
+                if response.status_code != 200:
+                    logger.warning(f"Failed to fetch from SkillHub: {response.status_code}")
+                    break
+
+                data = response.json()
+                items = data.get(
+                    "items", data.get("skills", data.get("results", data.get("data", [])))
+                )
+
+                if not items:
+                    break
+
+                for item in items:
+                    skill = self._parse_skillhub_skill(item)
+                    if skill and await self.validate_source(skill):
+                        skills.append(skill)
+
+                if len(items) < params["limit"]:
+                    break
+
+                params["offset"] += params["limit"]
+
+                if limit and len(skills) >= limit:
+                    break
+
+                await asyncio.sleep(1.0)
+
+            logger.info(f"Collected {len(skills)} skills from SkillHub")
+
+        except Exception as e:
+            logger.error(f"Error fetching from SkillHub: {e}")
+
+        return skills[:limit] if limit else skills
+
+    def _parse_skillhub_skill(self, data: dict[str, Any]) -> SkillSource | None:
+        """解析 SkillHub 技能数据"""
+        try:
+            config = PlatformConfig.PLATFORMS["skillhub"]
+
+            name = data.get("name") or data.get("title", "unknown")
+            skill_id = data.get("id", name)
+
+            content = (
+                data.get("content")
+                or data.get("skill_md")
+                or data.get("description")
+                or data.get("readme", "")
+            )
+
+            scripts = []
+            for script in data.get("scripts", data.get("files", [])):
+                if isinstance(script, dict):
+                    scripts.append(
+                        {
+                            "filename": script.get("name", ""),
+                            "content": script.get("content", ""),
+                            "language": script.get(
+                                "language", self._detect_language(script.get("name", ""))
+                            ),
+                        }
+                    )
+
+            metadata = {
+                "author": data.get("author"),
+                "description": data.get("description"),
+                "version": data.get("version", "1.0.0"),
+                "permissions": data.get("permissions", []),
+                "triggers": data.get("triggers", []),
+                "tags": data.get("tags", []),
+                "source": "skillhub",
+            }
+
+            file_size = len(content.encode("utf-8"))
+            for script in scripts:
+                file_size += len(script.get("content", "").encode("utf-8"))
+
+            return SkillSource(
+                name=name,
+                content=content,
+                scripts=scripts,
+                source_path=f"{config['base_url']}/skills/{skill_id}",
+                platform="skillhub",
+                channel=SourceChannel.NETWORK_CRAWL,
+                file_size=file_size,
+                metadata=metadata,
+                collected_at=datetime.utcnow(),
+            )
+
+        except Exception as e:
+            logger.error(f"Error parsing SkillHub skill data: {e}")
+            return None
+
     async def _fetch_skill_detail(
-        self, platform: str, config: Dict[str, str], skill_id: str
-    ) -> Optional[SkillSource]:
+        self, platform: str, config: dict[str, Any], skill_id: str
+    ) -> SkillSource | None:
         """获取技能详情"""
         try:
             client = await self._get_client()
@@ -200,15 +709,19 @@ class NetworkCollector(BaseCollector):
                 return None
 
             data = response.json()
-            return self._parse_skill_data(platform, skill_id, data)
+            return self._parse_skill_data(platform, skill_id, data, config)
 
         except Exception as e:
             logger.error(f"Error fetching skill {skill_id} from {platform}: {e}")
             return None
 
     def _parse_skill_data(
-        self, platform: str, skill_id: str, data: Dict[str, Any]
-    ) -> Optional[SkillSource]:
+        self,
+        platform: str,
+        skill_id: str,
+        data: dict[str, Any],
+        config: dict[str, Any] | None = None,
+    ) -> SkillSource | None:
         """解析技能数据"""
         try:
             # 提取SKILL.md内容
@@ -244,11 +757,12 @@ class NetworkCollector(BaseCollector):
             for script in scripts:
                 file_size += len(script.get("content", "").encode("utf-8"))
 
+            base_url = config.get("base_url", "") if config else ""
             return SkillSource(
                 name=data.get("name", skill_id),
                 content=content,
                 scripts=scripts,
-                source_path=f"{config.get('base_url', '')}/skills/{skill_id}",
+                source_path=f"{base_url}/skills/{skill_id}",
                 platform=platform,
                 channel=SourceChannel.NETWORK_CRAWL,
                 file_size=file_size,
@@ -287,7 +801,7 @@ class NetworkCollector(BaseCollector):
 
         return True
 
-    async def crawl_url(self, url: str) -> Optional[SkillSource]:
+    async def crawl_url(self, url: str) -> SkillSource | None:
         """爬取单个URL的技能文件"""
         try:
             client = await self._get_client()

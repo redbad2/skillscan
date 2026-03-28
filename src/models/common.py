@@ -111,6 +111,10 @@ class Platform(str, Enum):
     CLAWHUB = "clawhub"
     SMITHERY = "smithery"
     SKILLSSH = "skillssh"
+    SKILLSMP = "skillsmp"
+    AGENTSKILLHUB = "agentskillhub"
+    AISKILLSTORE = "aiskillstore"
+    SKILLHUB = "skillhub"
     LOCAL = "local"
     UNKNOWN = "unknown"
 
