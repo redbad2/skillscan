@@ -16,10 +16,12 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Query, BackgroundTasks, Depends, Request
+from fastapi import FastAPI, HTTPException, Query, BackgroundTasks, Depends, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field, field_validator
+from fastapi.responses import FileResponse, JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+from pydantic import BaseModel, Field, field_validator, field_serializer
+from typing import Any, Dict, List, Optional
 from loguru import logger
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -50,6 +52,27 @@ try:
     HAS_DASHBOARD = True
 except ImportError:
     HAS_DASHBOARD = False
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """安全头中间件 - Issue #6: 添加常见安全Header"""
+    
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Content-Security-Policy"] = "default-src 'self'; frame-ancestors 'none'"
+        
+        return response
+
+
+def setup_security_headers(app: FastAPI):
+    """设置安全头"""
+    app.add_middleware(SecurityHeadersMiddleware)
 
 
 # Pydantic模型
@@ -290,6 +313,62 @@ class RuleTestRequest(BaseModel):
         return v
 
 
+class RuleImportRequest(BaseModel):
+    """规则导入请求模型 - Issue #10: 添加文件大小限制"""
+    
+    rules: List[Dict[str, Any]] = Field(..., max_length=100)
+    
+    @field_validator("rules")
+    @classmethod
+    def validate_rules_size(cls, v):
+        import json
+        total_size = len(json.dumps(v).encode("utf-8"))
+        if total_size > 10 * 1024 * 1024:  # 10MB limit
+            raise ValueError("Import data exceeds maximum size of 10MB")
+        for i, rule in enumerate(v):
+            if not isinstance(rule, dict):
+                raise ValueError(f"Rule at index {i} must be a dictionary")
+            rule_size = len(json.dumps(rule).encode("utf-8"))
+            if rule_size > 1024 * 1024:  # 1MB per rule
+                raise ValueError(f"Rule at index {i} exceeds maximum size of 1MB")
+        return v
+
+
+class SanitizedDict(BaseModel):
+    """防NoSQL注入的安全字典模型 - Issue #7"""
+    
+    model_config = {"extra": "forbid"}
+    
+    @classmethod
+    def sanitize_nosql(cls, data: Any) -> Any:
+        """递归清理可能包含NoSQL注入的数据"""
+        import re
+        
+        if data is None:
+            return None
+        
+        if isinstance(data, dict):
+            sanitized = {}
+            for key, value in data.items():
+                if isinstance(key, str) and (
+                    key.startswith("$") or 
+                    re.match(r'^\$.+', key) or 
+                    key in ["$where", "$eval", "$function", "$ne", "$exists", "$regex", "$gt", "$lt", "$gte", "$lte", "$in", "$nin", "$or", "$and", "$not", "$nor", "$type", "$mod", "$text", "$where", "$expr"]
+                ):
+                    raise ValueError(f"Potentially dangerous MongoDB operator in key: {key}")
+                sanitized[key] = cls.sanitize_nosql(value)
+            return sanitized
+        
+        if isinstance(data, list):
+            return [cls.sanitize_nosql(item) for item in data]
+        
+        if isinstance(data, str):
+            if re.search(r'^\$.+', data):
+                raise ValueError(f"Potentially dangerous value: {data[:50]}...")
+        
+        return data
+
+
 class RuleFeedbackRequest(BaseModel):
     """规则反馈模型"""
 
@@ -354,6 +433,40 @@ report_generator = ReportGenerator()
 async def startup_event():
     """应用启动时初始化MongoDB连接和LLM配置"""
     global mongodb_storage, scan_engine
+    
+    setup_security_headers(app)
+    
+    def sanitize_log(record):
+        """Issue #9: 日志脱敏 - 移除敏感信息"""
+        import re
+        log_message = record["message"]
+        
+        sensitive_patterns = [
+            (r'("secret"\s*:\s*")[^"]+(")', r'\1***REDACTED***\2'),
+            (r'("api_key"\s*:\s*")[^"]+(")', r'\1***REDACTED***\2'),
+            (r'("password"\s*:\s*")[^"]+(")', r'\1***REDACTED***\2'),
+            (r'("token"\s*:\s*")[^"]+(")', r'\1***REDACTED***\2'),
+            (r'(Bearer\s+)[^\s]+', r'\1***REDACTED***'),
+            (r'(api[_-]?key["\s:=]+)[^\s,}]+', r'\1***REDACTED***'),
+            (r'(secret["\s:=]+)[^\s,}]+', r'\1***REDACTED***'),
+            (r'(password["\s:=]+)[^\s,}]+', r'\1***REDACTED***'),
+        ]
+        
+        for pattern, replacement in sensitive_patterns:
+            log_message = re.sub(pattern, replacement, log_message, flags=re.IGNORECASE)
+        
+        record["message"] = log_message
+        return record
+    
+    logger.configure(
+        handlers=[{
+            "sink": lambda msg: print(msg),
+            "format": "<level>{time:YYYY-MM-DD HH:mm:ss}</level> | <level>{level}</level> | <level>{message}</level>",
+            "filter": None,
+            "colorize": True,
+        }]
+    )
+    logger.add(sanitize_log, format="{message}")
 
     try:
         mongodb_storage = MongoDBStorage()
@@ -1167,22 +1280,22 @@ async def export_rules(format: str = Query("json", regex="^(json|yaml)$")):
 
 @app.post("/api/v1/config/rules/import")
 async def import_rules(
-    data: Dict[str, Any],
+    data: RuleImportRequest,
     format: str = Query("json", regex="^(json|yaml)$"),
     replace: bool = Query(False),
     auth: dict = Depends(require_api_key),
 ):
-    """导入规则"""
+    """导入规则 - Issue #10: 添加了文件大小限制"""
     if rule_config_manager is None:
         raise HTTPException(status_code=503, detail="Rule Config Manager not available")
 
     success = rule_config_manager.import_rules(
-        data.get("rules", []), format=format, replace=replace
+        data.rules, format=format, replace=replace
     )
     if not success:
         raise HTTPException(status_code=400, detail="Failed to import rules")
 
-    return {"success": True, "message": f"Imported {len(data.get('rules', []))} rules"}
+    return {"success": True, "message": f"Imported {len(data.rules)} rules"}
 
 
 @app.post("/api/v1/scans/{task_id}/report")
