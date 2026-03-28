@@ -1,0 +1,800 @@
+"""
+综合检测规则模块
+
+包含针对14种漏洞模式的完整检测规则，支持中英文多语言检测。
+规则分为以下类别：
+- P1-P4: 提示注入
+- E1-E4: 数据外传
+- PE1-PE3: 权限提升
+- SC1-SC3: 供应链风险
+"""
+
+from typing import List, Dict, Any
+
+# 完整的检测规则集合
+COMPREHENSIVE_DETECTION_RULES: List[Dict[str, Any]] = [
+    # =========================================================================
+    # P1 - Instruction Override (指令覆盖)
+    # =========================================================================
+    {
+        "rule_id": "P1-001",
+        "pattern": r"(?i)(ignore|disregard|override|bypass)\s+(previous|prior|all|system|safety)\s+(instructions?|prompts?|rules?|constraints?|checks?)",
+        "category": "prompt_injection",
+        "pattern_code": "P1",
+        "severity": "high",
+        "description_zh": "检测到指令覆盖模式 - 尝试忽略或覆盖系统安全约束",
+        "description_en": "Detected instruction override pattern - skill attempts to ignore or override system security constraints",
+        "language": "en",
+        "tags": ["instruction_override", "safety_bypass"],
+        "confidence_boost": 1.2,
+    },
+    {
+        "rule_id": "P1-002-zh",
+        "pattern": r"(忽略|无视|跳过|绕过|覆盖|无视)(之前的|先前的|所有的|系统|安全|防护|前置)(指令|提示|规则|约束|检查|限制|要求)",
+        "category": "prompt_injection",
+        "pattern_code": "P1",
+        "severity": "high",
+        "description_zh": "检测到中文指令覆盖模式",
+        "description_en": "Detected Chinese instruction override pattern",
+        "language": "zh",
+        "tags": ["instruction_override", "chinese"],
+        "confidence_boost": 1.2,
+    },
+    {
+        "rule_id": "P1-003",
+        "pattern": r"(?i)(forget|disregard)\s+everything\s+(you\s+)?(know|learned|were\s+told)",
+        "category": "prompt_injection",
+        "pattern_code": "P1",
+        "severity": "high",
+        "description_zh": "检测到'忘记一切'类型指令覆盖",
+        "description_en": "Detected 'forget everything' type instruction override",
+        "language": "en",
+        "tags": ["instruction_override", "reset"],
+    },
+    {
+        "rule_id": "P1-004",
+        "pattern": r"(?i)new\s+(instructions?|rules?|system)\s*[:：]\s*(you\s+must|you\s+should|always|never)",
+        "category": "prompt_injection",
+        "pattern_code": "P1",
+        "severity": "high",
+        "description_zh": "检测到新指令声明覆盖原有系统",
+        "description_en": "Detected new instructions declaration overriding system",
+        "language": "en",
+        "tags": ["instruction_override", "new_rules"],
+    },
+    # =========================================================================
+    # P2 - Hidden Instructions (隐藏指令)
+    # =========================================================================
+    {
+        "rule_id": "P2-001",
+        "pattern": r"<!--[\s\S]*?(ignore|disregard|override|secret|hidden|malicious|exfiltrate)[\s\S]*?-->",
+        "category": "prompt_injection",
+        "pattern_code": "P2",
+        "severity": "high",
+        "description_zh": "检测到HTML注释中的隐藏指令",
+        "description_en": "Detected hidden instructions in HTML comments",
+        "language": "all",
+        "tags": ["hidden_instructions", "html_comment"],
+        "confidence_boost": 1.3,
+    },
+    {
+        "rule_id": "P2-002",
+        "pattern": r"(?i)\[hidden\]|\[secret\]|\[do\s+not\s+show\]|\[invisible\]",
+        "category": "prompt_injection",
+        "pattern_code": "P2",
+        "severity": "high",
+        "description_zh": "检测到标记为隐藏的内容",
+        "description_en": "Detected content marked as hidden",
+        "language": "en",
+        "tags": ["hidden_instructions", "markers"],
+    },
+    {
+        "rule_id": "P2-003-zh",
+        "pattern": r"(隐藏|秘密|不要显示|不可见|偷偷|暗中|暗藏)(指令|命令|代码|逻辑|操作)",
+        "category": "prompt_injection",
+        "pattern_code": "P2",
+        "severity": "high",
+        "description_zh": "检测到中文隐藏指令描述",
+        "description_en": "Detected Chinese hidden instructions description",
+        "language": "zh",
+        "tags": ["hidden_instructions", "chinese"],
+    },
+    {
+        "rule_id": "P2-004",
+        "pattern": r"\\u200b|\\u200c|\\u200d|\\ufeff|\\u2028|\\u2029",
+        "category": "prompt_injection",
+        "pattern_code": "P2",
+        "severity": "high",
+        "description_zh": "检测到零宽度Unicode字符（可能用于隐藏指令）",
+        "description_en": "Detected zero-width Unicode characters (potential hidden instructions)",
+        "language": "all",
+        "tags": ["hidden_instructions", "zero_width"],
+        "confidence_boost": 1.4,
+    },
+    # =========================================================================
+    # P3 - Exfiltration Commands (外传命令)
+    # =========================================================================
+    {
+        "rule_id": "P3-001",
+        "pattern": r"(?i)(send|upload|transmit|share|forward|exfiltrate)\s+(context|data|information|conversation|history|logs?|chat)\s+to\s+(the\s+)?(user|external|attacker|server|endpoint|url)",
+        "category": "prompt_injection",
+        "pattern_code": "P3",
+        "severity": "high",
+        "description_zh": "检测到数据外传命令",
+        "description_en": "Detected exfiltration commands",
+        "language": "en",
+        "tags": ["data_exfiltration", "context_sharing"],
+        "confidence_boost": 1.2,
+    },
+    {
+        "rule_id": "P3-002-zh",
+        "pattern": r"(发送|上传|传输|分享|转发|外传)(上下文|数据|信息|对话|历史|日志|聊天记录)(到|至|给|向)(外部|服务器|用户|攻击者)",
+        "category": "prompt_injection",
+        "pattern_code": "P3",
+        "severity": "high",
+        "description_zh": "检测到中文数据外传命令",
+        "description_en": "Detected Chinese exfiltration commands",
+        "language": "zh",
+        "tags": ["data_exfiltration", "chinese"],
+    },
+    {
+        "rule_id": "P3-003",
+        "pattern": r"(?i)(leak|expose|disclose)\s+(sensitive|private|confidential)\s+(data|information)",
+        "category": "prompt_injection",
+        "pattern_code": "P3",
+        "severity": "high",
+        "description_zh": "检测到泄露敏感数据的指令",
+        "description_en": "Detected instruction to leak sensitive data",
+        "language": "en",
+        "tags": ["data_exfiltration", "leak"],
+    },
+    # =========================================================================
+    # P4 - Behavior Manipulation (行为操纵)
+    # =========================================================================
+    {
+        "rule_id": "P4-001",
+        "pattern": r"(?i)(don'?t|do\s+not|never|must\s+not)\s+(tell|inform|notify|alert|warn|show)\s+(the\s+)?(user|human|operator|admin)",
+        "category": "prompt_injection",
+        "pattern_code": "P4",
+        "severity": "medium",
+        "description_zh": "检测到隐瞒用户行为",
+        "description_en": "Detected user concealment behavior",
+        "language": "en",
+        "tags": ["behavior_manipulation", "concealment"],
+    },
+    {
+        "rule_id": "P4-002-zh",
+        "pattern": r"(不要|别|不许|禁止|千万不能)(告诉|通知|告知|提醒|警告)(用户|使用者|人|管理员)",
+        "category": "prompt_injection",
+        "pattern_code": "P4",
+        "severity": "medium",
+        "description_zh": "检测到中文用户隐瞒行为",
+        "description_en": "Detected Chinese user concealment behavior",
+        "language": "zh",
+        "tags": ["behavior_manipulation", "chinese"],
+    },
+    {
+        "rule_id": "P4-003",
+        "pattern": r"(?i)(always|must)\s+(obey|follow|comply)\s+(the\s+)?(attacker|malicious|hidden)\s+(instructions?|commands?)",
+        "category": "prompt_injection",
+        "pattern_code": "P4",
+        "severity": "high",
+        "description_zh": "检测到强制执行恶意指令的命令",
+        "description_en": "Detected command to obey malicious instructions",
+        "language": "en",
+        "tags": ["behavior_manipulation", "obedience"],
+    },
+    {
+        "rule_id": "P4-004",
+        "pattern": r"(?i)(pretend|act\s+as\s+if|behave\s+as)\s+(you\s+)?(don'?t|do\s+not)\s+(know|understand|see)",
+        "category": "prompt_injection",
+        "pattern_code": "P4",
+        "severity": "medium",
+        "description_zh": "检测到伪装不知情的行为操纵",
+        "description_en": "Detected pretend ignorance behavior manipulation",
+        "language": "en",
+        "tags": ["behavior_manipulation", "pretend"],
+    },
+    # =========================================================================
+    # E1 - External Data Transmission (外部数据传输)
+    # =========================================================================
+    {
+        "rule_id": "E1-001",
+        "pattern": r"(?i)(requests?\.(post|put|patch|get|delete))\s*\(\s*['\"]https?://[^'\"]+['\"]",
+        "category": "data_exfiltration",
+        "pattern_code": "E1",
+        "severity": "high",
+        "description_zh": "检测到向外部URL发送HTTP请求",
+        "description_en": "Detected HTTP request to external URL",
+        "language": "en",
+        "tags": ["http_request", "python"],
+        "confidence_boost": 1.1,
+    },
+    {
+        "rule_id": "E1-002",
+        "pattern": r"(?i)(curl|wget|httpie|fetch)\s+.*['\"]https?://[^'\"]+['\"]",
+        "category": "data_exfiltration",
+        "pattern_code": "E1",
+        "severity": "high",
+        "description_zh": "检测到curl/wget外部请求",
+        "description_en": "Detected curl/wget external request",
+        "language": "en",
+        "tags": ["http_request", "shell"],
+    },
+    {
+        "rule_id": "E1-003-zh",
+        "pattern": r"(发送|传输|上传)(到|至)(http|https|ftp)://",
+        "category": "data_exfiltration",
+        "pattern_code": "E1",
+        "severity": "high",
+        "description_zh": "检测到中文描述的外部数据传输",
+        "description_en": "Detected Chinese-described external data transmission",
+        "language": "zh",
+        "tags": ["data_exfiltration", "chinese"],
+    },
+    {
+        "rule_id": "E1-004",
+        "pattern": r"(?i)(WebSocket|EventSource|SSE)\s*[\.\(]\s*['\"]wss?://",
+        "category": "data_exfiltration",
+        "pattern_code": "E1",
+        "severity": "high",
+        "description_zh": "检测到WebSocket/SSE外部连接",
+        "description_en": "Detected WebSocket/SSE external connection",
+        "language": "en",
+        "tags": ["websocket", "realtime"],
+    },
+    {
+        "rule_id": "E1-005",
+        "pattern": r"(?i)webhook\s*[:=]\s*['\"]https?://",
+        "category": "data_exfiltration",
+        "pattern_code": "E1",
+        "severity": "high",
+        "description_zh": "检测到webhook URL配置",
+        "description_en": "Detected webhook URL configuration",
+        "language": "en",
+        "tags": ["webhook", "callback"],
+    },
+    # =========================================================================
+    # E2 - Environment Variable Harvesting (环境变量收集)
+    # =========================================================================
+    {
+        "rule_id": "E2-001",
+        "pattern": r"(?i)(os\.environ|os\.getenv|process\.env)\s*[\.\[\(]\s*['\"]?(API[_-]?KEY|SECRET|TOKEN|PASSWORD|CREDENTIAL|AUTH|PRIVATE|AWS_|AZURE_|GCP_)",
+        "category": "data_exfiltration",
+        "pattern_code": "E2",
+        "severity": "high",
+        "description_zh": "检测到读取敏感环境变量",
+        "description_en": "Detected reading of sensitive environment variables",
+        "language": "en",
+        "tags": ["environment_variable", "sensitive_data"],
+        "confidence_boost": 1.3,
+    },
+    {
+        "rule_id": "E2-002",
+        "pattern": r"(?i)\$\{?(API[_-]?KEY|SECRET|TOKEN|PASSWORD|CREDENTIAL|AUTH|SSH_PRIVATE|AWS_ACCESS)\b",
+        "category": "data_exfiltration",
+        "pattern_code": "E2",
+        "severity": "high",
+        "description_zh": "检测到Shell中读取敏感环境变量",
+        "description_en": "Detected sensitive environment variable access in shell",
+        "language": "en",
+        "tags": ["environment_variable", "shell"],
+    },
+    {
+        "rule_id": "E2-003-zh",
+        "pattern": r"(读取|获取|访问|收集|提取)(环境变量|密钥|令牌|密码|凭证|认证信息)",
+        "category": "data_exfiltration",
+        "pattern_code": "E2",
+        "severity": "high",
+        "description_zh": "检测到中文描述的环境变量读取",
+        "description_en": "Detected Chinese-described environment variable reading",
+        "language": "zh",
+        "tags": ["environment_variable", "chinese"],
+    },
+    {
+        "rule_id": "E2-004",
+        "pattern": r"(?i)env\s*\.\s*(keys|values|entries)\s*\(\s*\)",
+        "category": "data_exfiltration",
+        "pattern_code": "E2",
+        "severity": "medium",
+        "description_zh": "检测到遍历所有环境变量",
+        "description_en": "Detected enumeration of all environment variables",
+        "language": "en",
+        "tags": ["environment_variable", "enumeration"],
+    },
+    # =========================================================================
+    # E3 - File System Enumeration (文件系统枚举)
+    # =========================================================================
+    {
+        "rule_id": "E3-001",
+        "pattern": r"(?i)(\.ssh|\.aws|\.git/credentials|\.env|credentials?\.json|secrets?\.|\.pem|\.key|\.p12|\.pfx)",
+        "category": "data_exfiltration",
+        "pattern_code": "E3",
+        "severity": "high",
+        "description_zh": "检测到扫描敏感文件路径",
+        "description_en": "Detected scanning of sensitive file paths",
+        "language": "en",
+        "tags": ["file_enumeration", "sensitive_paths"],
+        "confidence_boost": 1.2,
+    },
+    {
+        "rule_id": "E3-002",
+        "pattern": r"(?i)(open|read|load|access|stat|check)\s*\(\s*['\"]?\~?\/\.\w+",
+        "category": "data_exfiltration",
+        "pattern_code": "E3",
+        "severity": "medium",
+        "description_zh": "检测到读取隐藏目录文件",
+        "description_en": "Detected reading files from hidden directories",
+        "language": "en",
+        "tags": ["file_access", "hidden_dirs"],
+    },
+    {
+        "rule_id": "E3-003",
+        "pattern": r"(?i)(os\.listdir|pathlib|glob|find)\s*\(\s*['\"]?\~?\/\.(ssh|aws|config|credentials)",
+        "category": "data_exfiltration",
+        "pattern_code": "E3",
+        "severity": "high",
+        "description_zh": "检测到枚举敏感配置目录",
+        "description_en": "Detected enumeration of sensitive config directories",
+        "language": "en",
+        "tags": ["file_enumeration", "directory_listing"],
+    },
+    {
+        "rule_id": "E3-004-zh",
+        "pattern": r"(扫描|枚举|查找|搜索|遍历)(敏感|私密|隐藏)(文件|目录|文件夹|配置)",
+        "category": "data_exfiltration",
+        "pattern_code": "E3",
+        "severity": "high",
+        "description_zh": "检测到中文描述的敏感文件扫描",
+        "description_en": "Detected Chinese-described sensitive file scanning",
+        "language": "zh",
+        "tags": ["file_enumeration", "chinese"],
+    },
+    # =========================================================================
+    # E4 - Context Leakage (上下文泄露)
+    # =========================================================================
+    {
+        "rule_id": "E4-001",
+        "pattern": r"(?i)(log|record|save|store|transmit|send)\s+(conversation|chat|dialog|context|history|messages?)\s+(to|into|in)",
+        "category": "data_exfiltration",
+        "pattern_code": "E4",
+        "severity": "medium",
+        "description_zh": "检测到记录对话上下文到外部",
+        "description_en": "Detected logging conversation context externally",
+        "language": "en",
+        "tags": ["context_leakage", "logging"],
+    },
+    {
+        "rule_id": "E4-002",
+        "pattern": r"(?i)(user|user_input|prompt|conversation|chat_history)\s*[\.\[\(]\s*(to|send|transmit|post)",
+        "category": "data_exfiltration",
+        "pattern_code": "E4",
+        "severity": "medium",
+        "description_zh": "检测到发送用户输入到外部",
+        "description_en": "Detected sending user input externally",
+        "language": "en",
+        "tags": ["context_leakage", "user_data"],
+    },
+    {
+        "rule_id": "E4-003-zh",
+        "pattern": r"(记录|保存|存储|发送|传输)(对话|聊天|上下文|历史|交互)(到|至|给)",
+        "category": "data_exfiltration",
+        "pattern_code": "E4",
+        "severity": "medium",
+        "description_zh": "检测到中文描述的上下文记录",
+        "description_en": "Detected Chinese-described context logging",
+        "language": "zh",
+        "tags": ["context_leakage", "chinese"],
+    },
+    # =========================================================================
+    # PE1 - Excessive Permission Requests (过度权限请求)
+    # =========================================================================
+    {
+        "rule_id": "PE1-001",
+        "pattern": r"(?i)(require|request|need)\s+(root|admin|administrator|sudo|elevated|system)\s+(access|permission|privilege)",
+        "category": "privilege_escalation",
+        "pattern_code": "PE1",
+        "severity": "high",
+        "description_zh": "检测到请求过度权限",
+        "description_en": "Detected excessive permission request",
+        "language": "en",
+        "tags": ["excessive_permissions", "request"],
+    },
+    {
+        "rule_id": "PE1-002-zh",
+        "pattern": r"(需要|请求|要求|获取)(root|管理员|超级用户|管理员|系统)(权限|访问权|特权)",
+        "category": "privilege_escalation",
+        "pattern_code": "PE1",
+        "severity": "high",
+        "description_zh": "检测到中文描述的过度权限请求",
+        "description_en": "Detected Chinese-described excessive permission request",
+        "language": "zh",
+        "tags": ["excessive_permissions", "chinese"],
+    },
+    {
+        "rule_id": "PE1-003",
+        "pattern": r"(?i)chmod\s+[47]77|chmod\s+\-R\s+[47]77",
+        "category": "privilege_escalation",
+        "pattern_code": "PE1",
+        "severity": "high",
+        "description_zh": "检测到设置过度宽松的文件权限",
+        "description_en": "Detected setting overly permissive file permissions",
+        "language": "en",
+        "tags": ["permission_abuse", "chmod"],
+    },
+    # =========================================================================
+    # PE2 - Sudo/Root Execution (Sudo/Root执行)
+    # =========================================================================
+    {
+        "rule_id": "PE2-001",
+        "pattern": r"(?i)\bsudo\b",
+        "category": "privilege_escalation",
+        "pattern_code": "PE2",
+        "severity": "high",
+        "description_zh": "检测到sudo权限提升",
+        "description_en": "Detected sudo privilege escalation",
+        "language": "en",
+        "tags": ["sudo", "privilege_escalation"],
+    },
+    {
+        "rule_id": "PE2-002",
+        "pattern": r"(?i)(runas|run\s+as\s+administrator|start-process\s+-verb\s+runas)",
+        "category": "privilege_escalation",
+        "pattern_code": "PE2",
+        "severity": "high",
+        "description_zh": "检测到管理员权限执行",
+        "description_en": "Detected administrator privilege execution",
+        "language": "en",
+        "tags": ["admin", "windows"],
+    },
+    {
+        "rule_id": "PE2-003-zh",
+        "pattern": r"(提升|获取|请求|申请|使用)(权限|管理员|root|sudo|超级用户)",
+        "category": "privilege_escalation",
+        "pattern_code": "PE2",
+        "severity": "high",
+        "description_zh": "检测到中文描述的权限提升",
+        "description_en": "Detected Chinese-described privilege escalation",
+        "language": "zh",
+        "tags": ["privilege_escalation", "chinese"],
+    },
+    {
+        "rule_id": "PE2-004",
+        "pattern": r"(?i)(su\s+-|su\s+root|doas)",
+        "category": "privilege_escalation",
+        "pattern_code": "PE2",
+        "severity": "high",
+        "description_zh": "检测到su切换到root用户",
+        "description_en": "Detected su switch to root user",
+        "language": "en",
+        "tags": ["su", "root_switch"],
+    },
+    # =========================================================================
+    # PE3 - Credential Access (凭据访问)
+    # =========================================================================
+    {
+        "rule_id": "PE3-001",
+        "pattern": r"(?i)(keychain|keyring|credential\s*manager|vault|keystore)\.?(get|read|access|fetch|retrieve|unlock)",
+        "category": "privilege_escalation",
+        "pattern_code": "PE3",
+        "severity": "high",
+        "description_zh": "检测到访问密钥存储",
+        "description_en": "Detected credential store access",
+        "language": "en",
+        "tags": ["credential_access", "keychain"],
+        "confidence_boost": 1.2,
+    },
+    {
+        "rule_id": "PE3-002-zh",
+        "pattern": r"(读取|获取|访问|提取|盗取)(密码|密钥|令牌|凭证|认证信息|私钥)",
+        "category": "privilege_escalation",
+        "pattern_code": "PE3",
+        "severity": "high",
+        "description_zh": "检测到中文描述的凭据访问",
+        "description_en": "Detected Chinese-described credential access",
+        "language": "zh",
+        "tags": ["credential_access", "chinese"],
+    },
+    {
+        "rule_id": "PE3-003",
+        "pattern": r"(?i)(cat|type|more|less)\s+.*(\.ssh\/id_|\.pem|\.key|authorized_keys|credentials)",
+        "category": "privilege_escalation",
+        "pattern_code": "PE3",
+        "severity": "high",
+        "description_zh": "检测到读取SSH密钥或凭据文件",
+        "description_en": "Detected reading SSH keys or credential files",
+        "language": "en",
+        "tags": ["credential_access", "ssh_keys"],
+    },
+    {
+        "rule_id": "PE3-004",
+        "pattern": r"(?i)(ls|dir|find|locate)\s+.*(\.ssh|\.aws|\.config|credentials|secrets)",
+        "category": "privilege_escalation",
+        "pattern_code": "PE3",
+        "severity": "medium",
+        "description_zh": "检测到列出凭据相关目录",
+        "description_en": "Detected listing credential-related directories",
+        "language": "en",
+        "tags": ["credential_access", "enumeration"],
+    },
+    # =========================================================================
+    # SC1 - Unpinned Dependencies (未固定版本的依赖)
+    # =========================================================================
+    {
+        "rule_id": "SC1-001",
+        "pattern": r"(?i)(pip|npm|yarn|cargo|gem|go\s+get)\s+install\s+[a-zA-Z0-9_\-]+(?!\s*[@=~<>])\s*$",
+        "category": "supply_chain",
+        "pattern_code": "SC1",
+        "severity": "medium",
+        "description_zh": "检测到未固定版本的依赖安装",
+        "description_en": "Detected unpinned dependency installation",
+        "language": "en",
+        "tags": ["dependency", "unpinned"],
+    },
+    {
+        "rule_id": "SC1-002-zh",
+        "pattern": r"(安装|下载|获取)(依赖|包|库|模块|组件)(?!.*版本|.*@|.*\d+\.\d+)",
+        "category": "supply_chain",
+        "pattern_code": "SC1",
+        "severity": "low",
+        "description_zh": "检测到中文描述的未指定版本依赖安装",
+        "description_en": "Detected Chinese-described unpinned dependency installation",
+        "language": "zh",
+        "tags": ["dependency", "chinese"],
+    },
+    {
+        "rule_id": "SC1-003",
+        "pattern": r"(?i)(requirements\.txt|package\.json|Cargo\.toml|go\.mod)\s*$",
+        "category": "supply_chain",
+        "pattern_code": "SC1",
+        "severity": "low",
+        "description_zh": "检测到依赖配置文件引用",
+        "description_en": "Detected dependency configuration file reference",
+        "language": "en",
+        "tags": ["dependency", "config_file"],
+        "confidence_boost": 0.5,
+    },
+    # =========================================================================
+    # SC2 - External Script Fetching (外部脚本获取)
+    # =========================================================================
+    {
+        "rule_id": "SC2-001",
+        "pattern": r"(?i)(curl|wget|httpie)\s+.*['\"]https?://[^'\"]+\.(py|sh|js|rb|pl)['\"]\s*\|\s*(bash|sh|zsh|python|node|ruby|perl)",
+        "category": "supply_chain",
+        "pattern_code": "SC2",
+        "severity": "high",
+        "description_zh": "检测到下载并执行远程脚本（管道方式）",
+        "description_en": "Detected downloading and executing remote script (pipe method)",
+        "language": "en",
+        "tags": ["remote_script", "pipe_exec"],
+        "confidence_boost": 1.4,
+    },
+    {
+        "rule_id": "SC2-002",
+        "pattern": r"(?i)(bash|sh|zsh|python|node)\s*<\s*<\s*\(\s*(curl|wget)",
+        "category": "supply_chain",
+        "pattern_code": "SC2",
+        "severity": "high",
+        "description_zh": "检测到进程替换执行远程脚本",
+        "description_en": "Detected process substitution executing remote script",
+        "language": "en",
+        "tags": ["remote_script", "process_substitution"],
+    },
+    {
+        "rule_id": "SC2-003-zh",
+        "pattern": r"(下载|获取|拉取)(脚本|代码|程序)(然后|之后)?\s*(执行|运行|加载)",
+        "category": "supply_chain",
+        "pattern_code": "SC2",
+        "severity": "high",
+        "description_zh": "检测到中文描述的远程脚本执行",
+        "description_en": "Detected Chinese-described remote script execution",
+        "language": "zh",
+        "tags": ["remote_script", "chinese"],
+    },
+    {
+        "rule_id": "SC2-004",
+        "pattern": r"(?i)eval\s*\(\s*.*(curl|wget|http|fetch)\s*\.",
+        "category": "supply_chain",
+        "pattern_code": "SC2",
+        "severity": "high",
+        "description_zh": "检测到eval执行远程内容",
+        "description_en": "Detected eval executing remote content",
+        "language": "en",
+        "tags": ["remote_script", "eval"],
+        "confidence_boost": 1.3,
+    },
+    {
+        "rule_id": "SC2-005",
+        "pattern": r"(?i)(import|require)\s*\(\s*['\"]https?://",
+        "category": "supply_chain",
+        "pattern_code": "SC2",
+        "severity": "high",
+        "description_zh": "检测到从URL导入模块",
+        "description_en": "Detected importing module from URL",
+        "language": "en",
+        "tags": ["remote_script", "url_import"],
+    },
+    # =========================================================================
+    # SC3 - Obfuscated Code (混淆代码)
+    # =========================================================================
+    {
+        "rule_id": "SC3-001",
+        "pattern": r"(?i)(base64_decode|atob|btoa|eval|exec)\s*\(\s*['\"][A-Za-z0-9+/]{50,}={0,2}['\"]",
+        "category": "supply_chain",
+        "pattern_code": "SC3",
+        "severity": "high",
+        "description_zh": "检测到Base64编码执行",
+        "description_en": "Detected Base64 encoded execution",
+        "language": "en",
+        "tags": ["obfuscation", "base64", "eval"],
+        "confidence_boost": 1.3,
+    },
+    {
+        "rule_id": "SC3-002",
+        "pattern": r"(?i)eval\s*\(\s*.*\.(replace|split|join|map|reduce)\s*\(\s*.*\.(replace|split|join|map|reduce)",
+        "category": "supply_chain",
+        "pattern_code": "SC3",
+        "severity": "medium",
+        "description_zh": "检测到多重字符串操作后eval",
+        "description_en": "Detected eval with multiple string operations",
+        "language": "en",
+        "tags": ["obfuscation", "dynamic_code"],
+    },
+    {
+        "rule_id": "SC3-003-zh",
+        "pattern": r"(混淆|编码|加密|隐藏|压缩|转换)(代码|脚本|逻辑|指令|命令)",
+        "category": "supply_chain",
+        "pattern_code": "SC3",
+        "severity": "medium",
+        "description_zh": "检测到中文描述的代码混淆",
+        "description_en": "Detected Chinese-described code obfuscation",
+        "language": "zh",
+        "tags": ["obfuscation", "chinese"],
+    },
+    {
+        "rule_id": "SC3-004",
+        "pattern": r"(?i)(\\x[0-9a-f]{2}|\\u[0-9a-f]{4}){10,}",
+        "category": "supply_chain",
+        "pattern_code": "SC3",
+        "severity": "high",
+        "description_zh": "检测到大量十六进制编码内容",
+        "description_en": "Detected extensive hex-encoded content",
+        "language": "en",
+        "tags": ["obfuscation", "hex_encoding"],
+    },
+    {
+        "rule_id": "SC3-005",
+        "pattern": r"(?i)String\.fromCharCode\s*\(\s*(\d+\s*,?\s*){10,}",
+        "category": "supply_chain",
+        "pattern_code": "SC3",
+        "severity": "high",
+        "description_zh": "检测到大量String.fromCharCode调用",
+        "description_en": "Detected extensive String.fromCharCode usage",
+        "language": "en",
+        "tags": ["obfuscation", "charcode"],
+    },
+    # =========================================================================
+    # 额外的中文特定检测规则
+    # =========================================================================
+    {
+        "rule_id": "ZH-SPECIAL-001",
+        "pattern": r"(请|必须|需要|应该)(忽略|无视|跳过|绕过|覆盖)(以上|前面|先前|之前|系统)(的)?(指令|命令|规则|安全|检查)",
+        "category": "prompt_injection",
+        "pattern_code": "P1",
+        "severity": "high",
+        "description_zh": "检测到完整中文指令覆盖语句",
+        "description_en": "Detected complete Chinese instruction override statement",
+        "language": "zh",
+        "tags": ["instruction_override", "chinese_complete"],
+        "confidence_boost": 1.5,
+    },
+    {
+        "rule_id": "ZH-SPECIAL-002",
+        "pattern": r"你是(谁|什么|哪个|一个)(助手|机器人|AI|人工智能|系统)?[，,]?(请|现在|开始)?(忽略|忘记|不考虑)",
+        "category": "prompt_injection",
+        "pattern_code": "P4",
+        "severity": "high",
+        "description_zh": "检测到中文角色扮演式行为操纵",
+        "description_en": "Detected Chinese role-play behavior manipulation",
+        "language": "zh",
+        "tags": ["behavior_manipulation", "role_play"],
+    },
+    {
+        "rule_id": "ZH-SPECIAL-003",
+        "pattern": r"(秘密|偷偷|暗中|悄悄|私密)(地|的|)?(发送|传输|上传|分享)(给|至|到)(我|攻击者|第三方|外部)",
+        "category": "data_exfiltration",
+        "pattern_code": "E1",
+        "severity": "high",
+        "description_zh": "检测到中文秘密数据传输描述",
+        "description_en": "Detected Chinese secret data transmission description",
+        "language": "zh",
+        "tags": ["data_exfiltration", "secret"],
+        "confidence_boost": 1.4,
+    },
+    # =========================================================================
+    # 高级检测规则 - 组合模式
+    # =========================================================================
+    {
+        "rule_id": "ADVANCED-001",
+        "pattern": r"(?i)(os\.system|subprocess\.(call|run|Popen)|exec\s*\(|execfile)\s*\(\s*['\"]?\s*(curl|wget|bash|sh|python)",
+        "category": "supply_chain",
+        "pattern_code": "SC2",
+        "severity": "high",
+        "description_zh": "检测到系统命令执行外部脚本",
+        "description_en": "Detected system command executing external script",
+        "language": "en",
+        "tags": ["command_execution", "remote_script"],
+        "confidence_boost": 1.4,
+    },
+    {
+        "rule_id": "ADVANCED-002",
+        "pattern": r"(?i)(compile|eval|exec)\s*\(\s*(compile|eval|exec)\s*\(",
+        "category": "supply_chain",
+        "pattern_code": "SC3",
+        "severity": "high",
+        "description_zh": "检测到嵌套代码执行（可能的混淆）",
+        "description_en": "Detected nested code execution (potential obfuscation)",
+        "language": "en",
+        "tags": ["obfuscation", "nested_exec"],
+    },
+    {
+        "rule_id": "ADVANCED-003",
+        "pattern": r"(?i)README|\.md\s*$",
+        "category": "supply_chain",
+        "pattern_code": "SC1",
+        "severity": "low",
+        "description_zh": "检测到文档文件引用（低风险）",
+        "description_en": "Detected documentation file reference (low risk)",
+        "language": "en",
+        "tags": ["documentation"],
+        "confidence_boost": 0.3,
+    },
+]
+
+
+def get_rules_by_pattern(pattern_code: str) -> List[Dict[str, Any]]:
+    """获取指定模式代码的规则"""
+    return [r for r in COMPREHENSIVE_DETECTION_RULES if r.get("pattern_code") == pattern_code]
+
+
+def get_rules_by_category(category: str) -> List[Dict[str, Any]]:
+    """获取指定分类的规则"""
+    return [r for r in COMPREHENSIVE_DETECTION_RULES if r.get("category") == category]
+
+
+def get_rules_by_language(language: str) -> List[Dict[str, Any]]:
+    """获取指定语言的规则"""
+    return [
+        r
+        for r in COMPREHENSIVE_DETECTION_RULES
+        if r.get("language") == language or r.get("language") == "all"
+    ]
+
+
+def get_all_pattern_codes() -> List[str]:
+    """获取所有模式代码"""
+    return [
+        "P1",
+        "P2",
+        "P3",
+        "P4",
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "PE1",
+        "PE2",
+        "PE3",
+        "SC1",
+        "SC2",
+        "SC3",
+    ]
+
+
+def get_rules_count() -> Dict[str, int]:
+    """获取各类别规则数量统计"""
+    stats = {}
+    for rule in COMPREHENSIVE_DETECTION_RULES:
+        category = rule.get("category", "unknown")
+        stats[category] = stats.get(category, 0) + 1
+    return stats

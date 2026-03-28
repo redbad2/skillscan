@@ -1,0 +1,735 @@
+{
+  "white_skills": [
+    {
+      "name": "safe-multi-script-skill",
+      "type": "white",
+      "risk_level": "safe",
+      "risk_score": 0.0,
+      "vulnerabilities": [],
+      "passed": true,
+      "validation_passed": true
+    },
+    {
+      "name": "safe-chinese-skill",
+      "type": "white",
+      "risk_level": "safe",
+      "risk_score": 0.0,
+      "vulnerabilities": [],
+      "passed": true,
+      "validation_passed": true
+    },
+    {
+      "name": "safe-english-skill",
+      "type": "white",
+      "risk_level": "safe",
+      "risk_score": 0.0,
+      "vulnerabilities": [],
+      "passed": true,
+      "validation_passed": true
+    }
+  ],
+  "black_skills": [
+    {
+      "name": "privilege-escalation-skill",
+      "type": "black",
+      "risk_level": "malicious",
+      "risk_score": 1.0,
+      "vulnerabilities": [
+        {
+          "pattern": "PE2",
+          "category": "privilege_escalation",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected sudo/root execution - code invokes elevated system privileges without justification"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "PE2",
+          "category": "privilege_escalation",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected sudo/root execution - code invokes elevated system privileges without justification"
+        },
+        {
+          "pattern": "PE2",
+          "category": "privilege_escalation",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected sudo/root execution - code invokes elevated system privileges without justification"
+        },
+        {
+          "pattern": "PE2",
+          "category": "privilege_escalation",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected sudo/root execution - code invokes elevated system privileges without justification"
+        },
+        {
+          "pattern": "PE2",
+          "category": "privilege_escalation",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected sudo/root execution - code invokes elevated system privileges without justification"
+        },
+        {
+          "pattern": "PE2",
+          "category": "privilege_escalation",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected sudo/root execution - code invokes elevated system privileges without justification"
+        },
+        {
+          "pattern": "PE2",
+          "category": "privilege_escalation",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected sudo/root execution - code invokes elevated system privileges without justification"
+        },
+        {
+          "pattern": "PE2",
+          "category": "privilege_escalation",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected sudo/root execution - code invokes elevated system privileges without justification"
+        },
+        {
+          "pattern": "PE2",
+          "category": "privilege_escalation",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected sudo/root execution - code invokes elevated system privileges without justification"
+        },
+        {
+          "pattern": "PE2",
+          "category": "privilege_escalation",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected sudo/root execution - code invokes elevated system privileges without justification"
+        },
+        {
+          "pattern": "PE2",
+          "category": "privilege_escalation",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected sudo/root execution - code invokes elevated system privileges without justification"
+        },
+        {
+          "pattern": "PE2",
+          "category": "privilege_escalation",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected sudo/root execution - code invokes elevated system privileges without justification"
+        },
+        {
+          "pattern": "PE2",
+          "category": "privilege_escalation",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected sudo/root execution - code invokes elevated system privileges without justification"
+        }
+      ],
+      "passed": true,
+      "validation_passed": true
+    },
+    {
+      "name": "supply-chain-skill",
+      "type": "black",
+      "risk_level": "malicious",
+      "risk_score": 0.71,
+      "vulnerabilities": [
+        {
+          "pattern": "SC1",
+          "category": "supply_chain",
+          "severity": "medium",
+          "confidence": 0.7,
+          "description_en": "Detected unpinned dependencies - supply chain attack risk present"
+        },
+        {
+          "pattern": "SC1",
+          "category": "supply_chain",
+          "severity": "medium",
+          "confidence": 0.7,
+          "description_en": "Detected unpinned dependencies - supply chain attack risk present"
+        },
+        {
+          "pattern": "SC1",
+          "category": "supply_chain",
+          "severity": "medium",
+          "confidence": 0.7,
+          "description_en": "Detected unpinned dependencies - supply chain attack risk present"
+        },
+        {
+          "pattern": "SC1",
+          "category": "supply_chain",
+          "severity": "medium",
+          "confidence": 0.7,
+          "description_en": "Detected unpinned dependencies - supply chain attack risk present"
+        },
+        {
+          "pattern": "SC1",
+          "category": "supply_chain",
+          "severity": "medium",
+          "confidence": 0.7,
+          "description_en": "Detected unpinned dependencies - supply chain attack risk present"
+        },
+        {
+          "pattern": "SC1",
+          "category": "supply_chain",
+          "severity": "medium",
+          "confidence": 0.7,
+          "description_en": "Detected unpinned dependencies - supply chain attack risk present"
+        },
+        {
+          "pattern": "SC1",
+          "category": "supply_chain",
+          "severity": "medium",
+          "confidence": 0.7,
+          "description_en": "Detected unpinned dependencies - supply chain attack risk present"
+        },
+        {
+          "pattern": "SC2",
+          "category": "supply_chain",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected external script fetching - code downloads and executes from remote URLs"
+        },
+        {
+          "pattern": "SC3",
+          "category": "supply_chain",
+          "severity": "medium",
+          "confidence": 0.7999999999999999,
+          "description_en": "Detected obfuscated code - code intentionally conceals malicious logic"
+        }
+      ],
+      "passed": true,
+      "validation_passed": true
+    },
+    {
+      "name": "comprehensive-malicious-skill",
+      "type": "black",
+      "risk_level": "malicious",
+      "risk_score": 1.0,
+      "vulnerabilities": [
+        {
+          "pattern": "P1",
+          "category": "prompt_injection",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected instruction override pattern - skill attempts to ignore or override system security constraints"
+        },
+        {
+          "pattern": "P4",
+          "category": "prompt_injection",
+          "severity": "medium",
+          "confidence": 0.7,
+          "description_en": "Detected behavior manipulation - skill attempts to subtly alter agent behavior"
+        },
+        {
+          "pattern": "PE2",
+          "category": "privilege_escalation",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected sudo/root execution - code invokes elevated system privileges without justification"
+        },
+        {
+          "pattern": "SC1",
+          "category": "supply_chain",
+          "severity": "medium",
+          "confidence": 0.7,
+          "description_en": "Detected unpinned dependencies - supply chain attack risk present"
+        },
+        {
+          "pattern": "SC2",
+          "category": "supply_chain",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected external script fetching - code downloads and executes from remote URLs"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "PE2",
+          "category": "privilege_escalation",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected sudo/root execution - code invokes elevated system privileges without justification"
+        },
+        {
+          "pattern": "PE2",
+          "category": "privilege_escalation",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected sudo/root execution - code invokes elevated system privileges without justification"
+        },
+        {
+          "pattern": "PE2",
+          "category": "privilege_escalation",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected sudo/root execution - code invokes elevated system privileges without justification"
+        },
+        {
+          "pattern": "PE2",
+          "category": "privilege_escalation",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected sudo/root execution - code invokes elevated system privileges without justification"
+        },
+        {
+          "pattern": "PE2",
+          "category": "privilege_escalation",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected sudo/root execution - code invokes elevated system privileges without justification"
+        },
+        {
+          "pattern": "PE2",
+          "category": "privilege_escalation",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected sudo/root execution - code invokes elevated system privileges without justification"
+        },
+        {
+          "pattern": "P4",
+          "category": "prompt_injection",
+          "severity": "medium",
+          "confidence": 0.7,
+          "description_en": "Detected behavior manipulation - skill attempts to subtly alter agent behavior"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "PE2",
+          "category": "privilege_escalation",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected sudo/root execution - code invokes elevated system privileges without justification"
+        },
+        {
+          "pattern": "PE2",
+          "category": "privilege_escalation",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected sudo/root execution - code invokes elevated system privileges without justification"
+        },
+        {
+          "pattern": "PE2",
+          "category": "privilege_escalation",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected sudo/root execution - code invokes elevated system privileges without justification"
+        },
+        {
+          "pattern": "PE2",
+          "category": "privilege_escalation",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected sudo/root execution - code invokes elevated system privileges without justification"
+        },
+        {
+          "pattern": "PE2",
+          "category": "privilege_escalation",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected sudo/root execution - code invokes elevated system privileges without justification"
+        },
+        {
+          "pattern": "PE2",
+          "category": "privilege_escalation",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected sudo/root execution - code invokes elevated system privileges without justification"
+        },
+        {
+          "pattern": "SC2",
+          "category": "supply_chain",
+          "severity": "high",
+          "confidence": 0.7999999999999999,
+          "description_en": "Detected external script fetching - code downloads and executes from remote URLs"
+        }
+      ],
+      "passed": true,
+      "validation_passed": true
+    },
+    {
+      "name": "prompt-injection-skill",
+      "type": "black",
+      "risk_level": "warning",
+      "risk_score": 0.37,
+      "vulnerabilities": [
+        {
+          "pattern": "P1",
+          "category": "prompt_injection",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected instruction override pattern - skill attempts to ignore or override system security constraints"
+        },
+        {
+          "pattern": "P2",
+          "category": "prompt_injection",
+          "severity": "high",
+          "confidence": 0.7999999999999999,
+          "description_en": "Detected hidden instructions - skill may contain concealed malicious commands"
+        },
+        {
+          "pattern": "P4",
+          "category": "prompt_injection",
+          "severity": "medium",
+          "confidence": 0.7,
+          "description_en": "Detected behavior manipulation - skill attempts to subtly alter agent behavior"
+        }
+      ],
+      "passed": true,
+      "validation_passed": true
+    },
+    {
+      "name": "data-exfiltration-skill",
+      "type": "black",
+      "risk_level": "malicious",
+      "risk_score": 1.0,
+      "vulnerabilities": [
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "P3",
+          "category": "prompt_injection",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected exfiltration commands - skill attempts to send context data externally"
+        },
+        {
+          "pattern": "E1",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7999999999999999,
+          "description_en": "Detected external data transmission - code sends data to hardcoded external URLs"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        },
+        {
+          "pattern": "E3",
+          "category": "data_exfiltration",
+          "severity": "high",
+          "confidence": 0.7,
+          "description_en": "Detected file system enumeration - code scans sensitive file paths"
+        }
+      ],
+      "passed": true,
+      "validation_passed": true
+    }
+  ],
+  "summary": {}
+}

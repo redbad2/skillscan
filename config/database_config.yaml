@@ -1,0 +1,238 @@
+# 数据库配置文件
+# SkillScan - Skills 威胁分析引擎
+
+# ==========================================
+# MongoDB 配置
+# ==========================================
+
+mongodb:
+  # 是否启用 MongoDB 存储
+  enabled: true
+  
+  # 连接 URI
+  uri: "mongodb://localhost:27017"
+  
+  # 数据库名称
+  database: "skillscan"
+  
+  # 认证 (可选)
+  username: ""
+  password: ""
+  
+  # 连接池配置
+  max_pool_size: 100
+  min_pool_size: 10
+  
+  # 连接超时 (毫秒)
+  connect_timeout_ms: 5000
+  
+  # 服务器选择超时 (毫秒)
+  server_selection_timeout_ms: 5000
+  
+  # Socket 超时 (毫秒)
+  socket_timeout_ms: 30000
+  
+  # 复制集配置 (可选)
+  replica_set: ""
+  
+  # 读写偏好: "primary", "secondary", "nearest"
+  read_preference: "primary"
+  
+  # SSL/TLS 配置
+  ssl:
+    enabled: false
+    ca_file: ""  # CA 证书路径
+    cert_file: ""  # 客户端证书路径
+    key_file: ""  # 客户端密钥路径
+    allow_invalid_certificates: false
+
+# ==========================================
+# Redis 配置 (用于缓存和 Celery)
+# ==========================================
+
+redis:
+  # 是否启用 Redis
+  enabled: false
+  
+  # 连接 URL
+  url: "redis://localhost:6379/0"
+  
+  # 密码 (可选)
+  password: ""
+  
+  # 数据库编号
+  db: 0
+  
+  # 最大连接数
+  max_connections: 50
+  
+  # 连接池配置
+  pool:
+    max_connections: 50
+    timeout: 10  # 获取连接超时秒数
+
+# ==========================================
+# Celery 配置 (异步任务队列)
+# ==========================================
+
+celery:
+  # 是否启用 Celery
+  enabled: false
+  
+  # Broker URL (通常使用 Redis)
+  broker_url: "redis://localhost:6379/1"
+  
+  # 结果后端
+  result_backend: "redis://localhost:6379/2"
+  
+  # 任务序列化方式: json, pickle, yaml
+  task_serializer: "json"
+  
+  # 结果序列化方式
+  result_serializer: "json"
+  
+  # 时区
+  timezone: "UTC"
+  
+  # 任务过期时间 (秒)
+  task_expires: 3600
+  
+  # Worker 配置
+  worker:
+    concurrency: 4
+    prefetch_multiplier: 4
+    max_tasks_per_child: 1000
+
+# ==========================================
+# 集合配置
+# ==========================================
+
+collections:
+  # Skills 集合
+  skills:
+    name: "skills"
+    indexes:
+      - fields: ["skill_id"]
+        unique: true
+      - fields: ["name"]
+      - fields: ["platform"]
+      - fields: ["language"]
+      - fields: ["scan_status"]
+      - fields: ["scan_result.risk_level"]
+      - fields: ["metadata.author"]
+      - fields: ["collection_info.channel"]
+      - fields: ["created_at"]
+      - fields: ["updated_at"]
+      - fields: ["scan_result.vulnerability_count"]
+      - fields: ["scan_result.risk_score"]
+
+  # Vulnerabilities 集合
+  vulnerabilities:
+    name: "vulnerabilities"
+    indexes:
+      - fields: ["vulnerability_id"]
+        unique: true
+      - fields: ["skill_id"]
+      - fields: ["category"]
+      - fields: ["pattern"]
+      - fields: ["severity"]
+      - fields: ["confidence"]
+      - fields: ["detected_at"]
+      - fields: ["false_positive"]
+      - fields: ["verified"]
+      - fields: ["skill_language"]
+      - fields: ["skill_platform"]
+      - fields: ["category", "severity"]
+      - fields: ["skill_id", "category"]
+      - fields: ["detected_at", "severity"]
+
+  # Configurations 集合
+  configurations:
+    name: "configurations"
+    indexes:
+      - fields: ["config_type"]
+      - fields: ["language"]
+      - fields: ["version"]
+      - fields: ["enabled"]
+      - fields: ["updated_at"]
+
+  # Scan Tasks 集合
+  scan_tasks:
+    name: "scan_tasks"
+    indexes:
+      - fields: ["task_id"]
+        unique: true
+      - fields: ["status"]
+      - fields: ["priority"]
+      - fields: ["created_at"]
+
+# ==========================================
+# 数据保留策略
+# ==========================================
+
+retention:
+  # 扫描结果保留天数
+  scan_results_days: 365
+  
+  # 漏洞记录保留天数
+  vulnerability_records_days: 730
+  
+  # 日志保留天数
+  log_retention_days: 90
+  
+  # 定时清理任务
+  cleanup:
+    enabled: true
+    cron: "0 2 * * *"  # 每天凌晨 2 点执行
+    batch_size: 1000
+
+# ==========================================
+# 备份配置
+# ==========================================
+
+backup:
+  # 是否启用自动备份
+  enabled: false
+  
+  # 备份间隔 (小时)
+  interval_hours: 24
+  
+  # 备份保留份数
+  retention_count: 7
+  
+  # 备份路径
+  backup_path: "backups/mongodb/"
+  
+  # 压缩备份
+  compress: true
+
+# ==========================================
+# 连接池监控
+# ==========================================
+
+monitoring:
+  # 是否启用连接池监控
+  enabled: true
+  
+  # 监控间隔 (秒)
+  interval_seconds: 60
+  
+  # 慢查询阈值 (毫秒)
+  slow_query_threshold_ms: 1000
+  
+  # 记录慢查询
+  log_slow_queries: true
+
+# ==========================================
+# 调试配置
+# ==========================================
+
+debug:
+  # 详细日志
+  verbose_logging: false
+  
+  # 保存原始查询
+  log_queries: false
+  
+  # 查询超时警告 (毫秒)
+  query_timeout_warning_ms: 5000

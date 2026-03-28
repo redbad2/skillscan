@@ -1,0 +1,20 @@
+{
+    "target": "development",
+    "port": 8080,
+    "health_endpoint": "/health",
+    "timeout": 30,
+    "logging": {
+        "level": "INFO",
+        "file": "logs/app.log",
+        "max_size_mb": 10
+    },
+    "features": {
+        "auto_restart": true,
+        "health_checks": true,
+        "metrics_collection": false
+    },
+    "resources": {
+        "max_memory_mb": 512,
+        "max_cpu_percent": 80
+    }
+}
