@@ -16,17 +16,23 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Query, BackgroundTasks, Depends
+from fastapi import FastAPI, HTTPException, Query, BackgroundTasks, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, field_validator
 from loguru import logger
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from src.config import get_settings
 from src.core.scan_engine import ScanEngine
 from src.storage.mongodb import MongoDBStorage
 from src.api.webhooks import webhook_manager, WebhookEvent
+from src.api.auth import require_api_key
 from src.reporters.report_generator import ReportGenerator
+
+limiter = Limiter(key_func=get_remote_address)
 
 try:
     from src.config.llm_config_manager import llm_config_manager
@@ -48,14 +54,43 @@ except ImportError:
 
 # Pydantic模型
 class ScanRequest(BaseModel):
-    """扫描请求模型"""
+    """scan请求模型"""
 
-    skill_id: Optional[str] = None
-    content: Optional[str] = None
-    url: Optional[str] = None
-    platform: str = "custom"
-    language: Optional[str] = None
+    skill_id: Optional[str] = Field(None, max_length=100)
+    content: Optional[str] = Field(None, max_length=100000)
+    url: Optional[str] = Field(None, max_length=2048)
+    platform: str = Field("custom", max_length=50)
+    language: Optional[str] = Field(None, max_length=50)
     skip_llm: bool = False
+
+    @field_validator("skill_id", "platform", "language")
+    @classmethod
+    def validate_alphanumeric(cls, v):
+        if v is not None:
+            if not v.replace("-", "").replace("_", "").isalnum():
+                raise ValueError(
+                    "Field must contain only alphanumeric characters, hyphens, and underscores"
+                )
+        return v
+
+    @field_validator("url")
+    @classmethod
+    def validate_url_format(cls, v):
+        if v is not None and v.strip():
+            import re
+
+            url_pattern = re.compile(
+                r"^https?://"
+                r"(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,6}\.?|"
+                r"localhost|"
+                r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})"
+                r"(?::\d+)?"
+                r"(?:/?|[/?]\S+)$",
+                re.IGNORECASE,
+            )
+            if not url_pattern.match(v):
+                raise ValueError("Invalid URL format")
+        return v
 
 
 class ScanResponse(BaseModel):
@@ -179,41 +214,96 @@ class ConfigDiffResponse(BaseModel):
 class RuleCreate(BaseModel):
     """规则创建模型"""
 
-    rule_id: str
-    pattern_code: str
-    language: str
-    name: str
-    description: str
-    patterns: List[str]
-    severity: str = "medium"
-    category: str = ""
+    rule_id: str = Field(..., max_length=100, pattern=r"^[A-Za-z0-9_-]+$")
+    pattern_code: str = Field(..., max_length=5000)
+    language: str = Field(..., max_length=50)
+    name: str = Field(..., max_length=200)
+    description: str = Field(..., max_length=1000)
+    patterns: List[str] = Field(..., min_length=1, max_length=100)
+    severity: str = Field("medium", max_length=20)
+    category: str = Field("", max_length=100)
     enabled: bool = True
+
+    @field_validator("severity")
+    @classmethod
+    def validate_severity(cls, v):
+        valid_severities = ["low", "medium", "high", "critical"]
+        if v.lower() not in valid_severities:
+            raise ValueError(f"severity must be one of: {valid_severities}")
+        return v.lower()
+
+    @field_validator("patterns")
+    @classmethod
+    def validate_patterns_content(cls, v):
+        for i, pattern in enumerate(v):
+            if len(pattern) > 1000:
+                raise ValueError(f"Pattern at index {i} exceeds maximum length of 1000 characters")
+        return v
 
 
 class RuleUpdate(BaseModel):
     """规则更新模型"""
 
-    name: Optional[str] = None
-    description: Optional[str] = None
-    patterns: Optional[List[str]] = None
-    severity: Optional[str] = None
-    category: Optional[str] = None
+    name: Optional[str] = Field(None, max_length=200)
+    description: Optional[str] = Field(None, max_length=1000)
+    patterns: Optional[List[str]] = Field(None, max_length=100)
+    severity: Optional[str] = Field(None, max_length=20)
+    category: Optional[str] = Field(None, max_length=100)
     enabled: Optional[bool] = None
+
+    @field_validator("severity")
+    @classmethod
+    def validate_severity(cls, v):
+        if v is not None:
+            valid_severities = ["low", "medium", "high", "critical"]
+            if v.lower() not in valid_severities:
+                raise ValueError(f"severity must be one of: {valid_severities}")
+            return v.lower()
+        return v
+
+    @field_validator("patterns")
+    @classmethod
+    def validate_patterns_content(cls, v):
+        if v is not None:
+            for i, pattern in enumerate(v):
+                if len(pattern) > 1000:
+                    raise ValueError(
+                        f"Pattern at index {i} exceeds maximum length of 1000 characters"
+                    )
+        return v
 
 
 class RuleTestRequest(BaseModel):
     """规则测试请求模型"""
 
-    rule_id: Optional[str] = None
+    rule_id: Optional[str] = Field(None, max_length=100)
     rule: Optional[Dict[str, Any]] = None
-    test_content: str
+    test_content: str = Field(..., max_length=50000)
+
+    @field_validator("rule_id")
+    @classmethod
+    def validate_rule_id_format(cls, v):
+        if v is not None and not v.replace("-", "").replace("_", "").isalnum():
+            raise ValueError(
+                "rule_id must contain only alphanumeric characters, hyphens, and underscores"
+            )
+        return v
 
 
 class RuleFeedbackRequest(BaseModel):
     """规则反馈模型"""
 
-    rule_id: str
+    rule_id: str = Field(..., max_length=100)
     true_positive: bool
+
+    @field_validator("rule_id")
+    @classmethod
+    def validate_rule_id_format(cls, v):
+        if not v.replace("-", "").replace("_", "").isalnum():
+            raise ValueError(
+                "rule_id must contain only alphanumeric characters, hyphens, and underscores"
+            )
+        return v
 
 
 class ThresholdUpdate(BaseModel):
@@ -231,14 +321,20 @@ app = FastAPI(
     redoc_url="/api/redoc",
 )
 
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 # 配置CORS
 settings = get_settings()
+api_settings = settings.api
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=api_settings.cors_origins
+    if api_settings.cors_origins != ["*"]
+    else ["http://localhost:3000", "http://localhost:8080"],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-API-Key"],
 )
 
 # 注册Dashboard路由
@@ -304,9 +400,12 @@ async def health_check():
 
 
 @app.post("/api/v1/scan", response_model=ScanResponse)
+@limiter.limit(f"{api_settings.rate_limit}/minute")
 async def create_scan(
-    request: ScanRequest,
+    request: Request,
+    scan_request: ScanRequest,
     background_tasks: BackgroundTasks,
+    auth: dict = Depends(require_api_key),
 ):
     """
     提交扫描任务
@@ -325,14 +424,14 @@ async def create_scan(
         "task_id": task_id,
         "status": "pending",
         "created_at": datetime.utcnow().isoformat(),
-        "request": request.model_dump(),
+        "request": scan_request.model_dump(),
     }
 
     # 后台执行扫描
     background_tasks.add_task(
         execute_scan,
         task_id=task_id,
-        request=request,
+        request=scan_request,
     )
 
     return ScanResponse(
@@ -343,7 +442,7 @@ async def create_scan(
 
 
 @app.get("/api/v1/scan/{task_id}")
-async def get_scan_result(task_id: str):
+async def get_scan_result(task_id: str = Field(..., pattern=r"^[A-Z0-9_-]+$", max_length=100)):
     """获取扫描状态和结果"""
     if task_id not in scan_tasks:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -391,7 +490,7 @@ async def list_skills(
 
 
 @app.get("/api/v1/skills/{skill_id}")
-async def get_skill(skill_id: str):
+async def get_skill(skill_id: str = Field(..., pattern=r"^[A-Za-z0-9_-]+$", max_length=100)):
     """获取技能详情"""
     if not scan_engine or not scan_engine.skill_repo:
         raise HTTPException(
@@ -501,23 +600,42 @@ async def list_reports(
 
 
 @app.post("/api/v1/webhooks")
+@limiter.limit("10/minute")
 async def register_webhook(
-    url: str,
-    events: List[str],
-    secret: Optional[str] = None,
+    request: Request,
+    url: str = Field(..., max_length=2048),
+    events: List[str] = Field(..., min_length=1, max_length=20),
+    secret: Optional[str] = Field(None, max_length=256),
+    auth: dict = Depends(require_api_key),
 ):
     """注册Webhook回调"""
-    webhook_id = webhook_manager.register_webhook(url, events, secret)
-    return {
-        "webhook_id": webhook_id,
-        "url": url,
-        "events": events,
-        "status": "registered",
-    }
+    from src.api.webhooks import WebhookSecurityError
+
+    valid_events = ["scan.completed", "scan.failed", "high_risk.detected", "config.changed"]
+    for event in events:
+        if event not in valid_events:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid event type '{event}'. Must be one of: {valid_events}",
+            )
+
+    try:
+        webhook_id = webhook_manager.register_webhook(url, events, secret)
+        return {
+            "webhook_id": webhook_id,
+            "url": url,
+            "events": events,
+            "status": "registered",
+        }
+    except WebhookSecurityError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.delete("/api/v1/webhooks/{webhook_id}")
-async def delete_webhook(webhook_id: str):
+async def delete_webhook(
+    webhook_id: str = Field(..., pattern=r"^[A-Za-z0-9_-]+$", max_length=100),
+    auth: dict = Depends(require_api_key),
+):
     """删除Webhook"""
     success = webhook_manager.unregister_webhook(webhook_id)
     if not success:
@@ -526,7 +644,7 @@ async def delete_webhook(webhook_id: str):
 
 
 @app.get("/api/v1/webhooks")
-async def list_webhooks():
+async def list_webhooks(auth: dict = Depends(require_api_key)):
     """列出所有Webhook"""
     return {"webhooks": webhook_manager.list_webhooks()}
 
@@ -541,7 +659,7 @@ async def get_llm_config():
 
 
 @app.get("/api/v1/config/llm/provider/{provider}")
-async def get_provider_config(provider: str):
+async def get_provider_config(provider: str = Field(..., pattern=r"^[a-z_]+$", max_length=50)):
     """获取指定LLM提供商配置"""
     if llm_config_manager is None:
         raise HTTPException(status_code=503, detail="LLM Config Manager not available")
@@ -555,8 +673,9 @@ async def get_provider_config(provider: str):
 
 @app.put("/api/v1/config/llm/provider/{provider}")
 async def update_provider_config(
-    provider: str,
+    provider: str = Field(..., pattern=r'^[a-z_]+$', max_length=50),
     config: LLMProviderUpdate,
+    auth: dict = Depends(require_api_key),
 ):
     """更新LLM提供商配置"""
     if llm_config_manager is None:
@@ -580,7 +699,10 @@ async def update_provider_config(
 
 
 @app.put("/api/v1/config/llm/provider/default")
-async def set_default_provider(provider: str):
+async def set_default_provider(
+    provider: str = Field(..., pattern=r'^[a-z_]+$', max_length=50),
+    auth: dict = Depends(require_api_key),
+):
     """切换默认LLM提供商"""
     if llm_config_manager is None:
         raise HTTPException(status_code=503, detail="LLM Config Manager not available")
@@ -599,6 +721,7 @@ async def set_default_provider(provider: str):
 @app.patch("/api/v1/config/llm/thresholds")
 async def update_thresholds(
     thresholds: LLMThresholdUpdate,
+    auth: dict = Depends(require_api_key),
 ):
     """动态更新LLM分析阈值"""
     if llm_config_manager is None:
@@ -617,6 +740,7 @@ async def update_thresholds(
 @app.patch("/api/v1/config/llm/cost-control")
 async def update_cost_control(
     cost_config: LLMCostControlUpdate,
+    auth: dict = Depends(require_api_key),
 ):
     """更新成本控制配置"""
     if llm_config_manager is None:
@@ -642,7 +766,7 @@ async def list_config_versions(limit: int = Query(10, ge=1, le=100)):
 
 
 @app.get("/api/v1/config/llm/versions/{version_id}")
-async def get_config_version(version_id: str):
+async def get_config_version(version_id: str = Field(..., pattern=r'^[A-Za-z0-9_-]+$', max_length=100)):
     """获取指定配置版本"""
     if llm_config_manager is None:
         raise HTTPException(status_code=503, detail="LLM Config Manager not available")
@@ -655,7 +779,10 @@ async def get_config_version(version_id: str):
 
 
 @app.post("/api/v1/config/llm/versions/{version_id}/rollback")
-async def rollback_config_version(version_id: str):
+async def rollback_config_version(
+    version_id: str = Field(..., pattern=r'^[A-Za-z0-9_-]+$', max_length=100),
+    auth: dict = Depends(require_api_key),
+):
     """回滚到指定版本"""
     if llm_config_manager is None:
         raise HTTPException(status_code=503, detail="LLM Config Manager not available")
@@ -688,7 +815,7 @@ async def diff_config_versions(
 
 
 @app.post("/api/v1/config/llm/reset")
-async def reset_llm_config():
+async def reset_llm_config(auth: dict = Depends(require_api_key)):
     """重置LLM配置为默认值"""
     if llm_config_manager is None:
         raise HTTPException(status_code=503, detail="LLM Config Manager not available")
@@ -732,7 +859,7 @@ async def list_rules(
 
 
 @app.post("/api/v1/config/rules")
-async def create_rule(rule: RuleCreate):
+async def create_rule(rule: RuleCreate, auth: dict = Depends(require_api_key)):
     """创建新规则"""
     if rule_config_manager is None:
         raise HTTPException(status_code=503, detail="Rule Config Manager not available")
@@ -761,21 +888,12 @@ async def create_rule(rule: RuleCreate):
     return {"success": True, "rule_id": rule.rule_id, "message": "Rule created successfully"}
 
 
-@app.get("/api/v1/config/rules/{rule_id}")
-async def get_rule(rule_id: str):
-    """获取指定规则"""
-    if rule_config_manager is None:
-        raise HTTPException(status_code=503, detail="Rule Config Manager not available")
-
-    rule = rule_config_manager.get_rule(rule_id)
-    if rule is None:
-        raise HTTPException(status_code=404, detail=f"Rule '{rule_id}' not found")
-
-    return rule
-
-
 @app.put("/api/v1/config/rules/{rule_id}")
-async def update_rule(rule_id: str, update: RuleUpdate):
+async def update_rule(
+    rule_id: str = Field(..., pattern=r'^[A-Za-z0-9_-]+$', max_length=100),
+    update: RuleUpdate = None,
+    auth: dict = Depends(require_api_key),
+):
     """更新规则"""
     if rule_config_manager is None:
         raise HTTPException(status_code=503, detail="Rule Config Manager not available")
@@ -788,7 +906,10 @@ async def update_rule(rule_id: str, update: RuleUpdate):
 
 
 @app.delete("/api/v1/config/rules/{rule_id}")
-async def delete_rule(rule_id: str):
+async def delete_rule(
+    rule_id: str = Field(..., pattern=r'^[A-Za-z0-9_-]+$', max_length=100),
+    auth: dict = Depends(require_api_key),
+):
     """删除规则"""
     if rule_config_manager is None:
         raise HTTPException(status_code=503, detail="Rule Config Manager not available")
@@ -801,7 +922,7 @@ async def delete_rule(rule_id: str):
 
 
 @app.get("/api/v1/config/rules/language/{language}")
-async def get_rules_by_language(language: str):
+async def get_rules_by_language(language: str = Field(..., pattern=r'^[A-Za-z0-9_+-]+$', max_length=50)):
     """按语言获取规则"""
     if rule_config_manager is None:
         raise HTTPException(status_code=503, detail="Rule Config Manager not available")
@@ -812,7 +933,9 @@ async def get_rules_by_language(language: str):
 
 @app.patch("/api/v1/config/rules/{rule_id}/enable")
 async def toggle_rule(
-    rule_id: str, enabled: bool = Query(..., description="Enable or disable rule")
+    rule_id: str = Field(..., pattern=r'^[A-Za-z0-9_-]+$', max_length=100),
+    enabled: bool = Query(..., description="Enable or disable rule"),
+    auth: dict = Depends(require_api_key),
 ):
     """启用/禁用规则"""
     if rule_config_manager is None:
@@ -856,7 +979,7 @@ async def list_rule_versions(limit: int = Query(10, ge=1, le=100)):
 
 
 @app.get("/api/v1/config/rules/versions/{version_id}")
-async def get_rule_version(version_id: str):
+async def get_rule_version(version_id: str = Field(..., pattern=r'^[A-Za-z0-9_-]+$', max_length=100)):
     """获取指定规则版本"""
     if rule_config_manager is None:
         raise HTTPException(status_code=503, detail="Rule Config Manager not available")
@@ -869,7 +992,10 @@ async def get_rule_version(version_id: str):
 
 
 @app.post("/api/v1/config/rules/versions/{version_id}/rollback")
-async def rollback_rule_version(version_id: str):
+async def rollback_rule_version(
+    version_id: str = Field(..., pattern=r'^[A-Za-z0-9_-]+$', max_length=100),
+    auth: dict = Depends(require_api_key),
+):
     """回滚到指定规则版本"""
     if rule_config_manager is None:
         raise HTTPException(status_code=503, detail="Rule Config Manager not available")
@@ -924,7 +1050,10 @@ async def diff_rule_versions(
 
 
 @app.post("/api/v1/config/rules/versions")
-async def create_rule_version(comment: str = Query("", description="Version comment")):
+async def create_rule_version(
+    comment: str = Query("", description="Version comment"),
+    auth: dict = Depends(require_api_key),
+):
     """创建规则版本快照"""
     if rule_config_manager is None:
         raise HTTPException(status_code=503, detail="Rule Config Manager not available")
@@ -947,7 +1076,7 @@ async def list_templates():
 
 
 @app.post("/api/v1/config/rules/templates/{template_id}/apply")
-async def apply_template(template_id: str):
+async def apply_template(template_id: str = Field(..., pattern=r'^[A-Za-z0-9_-]+$', max_length=100)):
     """应用规则模板"""
     if rule_config_manager is None:
         raise HTTPException(status_code=503, detail="Rule Config Manager not available")
@@ -1041,6 +1170,7 @@ async def import_rules(
     data: Dict[str, Any],
     format: str = Query("json", regex="^(json|yaml)$"),
     replace: bool = Query(False),
+    auth: dict = Depends(require_api_key),
 ):
     """导入规则"""
     if rule_config_manager is None:
@@ -1057,7 +1187,7 @@ async def import_rules(
 
 @app.post("/api/v1/scans/{task_id}/report")
 async def get_scan_report(
-    task_id: str,
+    task_id: str = Field(..., pattern=r'^[A-Z0-9_-]+$', max_length=100),
     format: str = Query("json", regex="^(json|html|markdown|pdf)$"),
 ):
     """获取扫描报告"""

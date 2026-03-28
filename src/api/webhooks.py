@@ -1,16 +1,19 @@
 """
 Webhook回调模块
 
-管理扫描完成后的回调通知。
+管理扫描完成后的 callback通知。
 """
 
 import asyncio
 import hashlib
+import re
 import time
+import ipaddress
 from typing import Dict, Any, List, Optional, Callable
 from datetime import datetime
 from enum import Enum
 import httpx
+from urllib.parse import urlparse
 
 from loguru import logger
 
@@ -26,8 +29,31 @@ class WebhookEvent(str, Enum):
     MALICIOUS_DETECTED = "malicious.detected"
 
 
+class WebhookSecurityError(Exception):
+    """Webhook安全校验异常"""
+
+    pass
+
+
 class WebhookManager:
     """Webhook管理器"""
+
+    BLOCKED_IP_RANGES = [
+        ipaddress.ip_network("10.0.0.0/8"),
+        ipaddress.ip_network("172.16.0.0/12"),
+        ipaddress.ip_network("192.168.0.0/16"),
+        ipaddress.ip_network("127.0.0.0/8"),
+        ipaddress.ip_network("169.254.0.0/16"),
+        ipaddress.ip_network("0.0.0.0/8"),
+        ipaddress.ip_network("100.64.0.0/10"),
+        ipaddress.ip_network("192.0.0.0/24"),
+        ipaddress.ip_network("192.0.2.0/24"),
+        ipaddress.ip_network("198.51.100.0/24"),
+        ipaddress.ip_network("203.0.113.0/24"),
+        ipaddress.ip_network("fc00::/7"),
+        ipaddress.ip_network("fe80::/10"),
+        ipaddress.ip_network("::1/128"),
+    ]
 
     def __init__(self):
         self._webhooks: Dict[str, Dict[str, Any]] = {}
@@ -37,6 +63,67 @@ class WebhookManager:
         self._retry_queue: List[Dict[str, Any]] = []
         self._max_retries = 3
         self._retry_delay = 5
+        self._allowed_domains: List[str] = []
+        self._max_response_size = 1024 * 1024
+
+    def _validate_url(self, url: str) -> bool:
+        """
+        校验URL是否安全，防止SSRF攻击
+
+        Args:
+            url: 待校验的URL
+
+        Returns:
+            是否安全
+        """
+        try:
+            parsed = urlparse(url)
+
+            if parsed.scheme not in ("http", "https"):
+                logger.warning(f"Blocked webhook URL with invalid scheme: {url}")
+                return False
+
+            if not parsed.netloc:
+                logger.warning(f"Blocked webhook URL without netloc: {url}")
+                return False
+
+            hostname = parsed.hostname
+            if not hostname:
+                logger.warning(f"Blocked webhook URL without hostname: {url}")
+                return False
+
+            if hostname.lower() in ("localhost", "localhost.localdomain"):
+                logger.warning(f"Blocked webhook URL with localhost: {url}")
+                return False
+
+            try:
+                ip = ipaddress.ip_address(hostname)
+                for blocked_range in self.BLOCKED_IP_RANGES:
+                    if ip in blocked_range:
+                        logger.warning(f"Blocked webhook URL with private IP: {url}")
+                        return False
+            except ValueError:
+                pass
+
+            if self._allowed_domains:
+                domain_allowed = False
+                for allowed in self._allowed_domains:
+                    if hostname == allowed or hostname.endswith(f".{allowed}"):
+                        domain_allowed = True
+                        break
+                if not domain_allowed:
+                    logger.warning(f"Blocked webhook URL not in allowed domains: {url}")
+                    return False
+
+            return True
+
+        except Exception as e:
+            logger.warning(f"Error validating webhook URL {url}: {e}")
+            return False
+
+    def set_allowed_domains(self, domains: List[str]):
+        """设置允许的域名白名单"""
+        self._allowed_domains = domains
 
     def register_webhook(
         self,
@@ -56,7 +143,15 @@ class WebhookManager:
 
         Returns:
             Webhook ID
+
+        Raises:
+            WebhookSecurityError: URL校验失败时抛出
         """
+        if not self._validate_url(url):
+            raise WebhookSecurityError(
+                "Webhook URL validation failed: only HTTPS URLs to public domains are allowed"
+            )
+
         webhook_id = hashlib.sha256(f"{url}{time.time()}".encode()).hexdigest()[:16]
 
         self._webhooks[webhook_id] = {
@@ -218,7 +313,14 @@ class WebhookManager:
 
         for attempt in range(self._max_retries):
             try:
-                async with httpx.AsyncClient(timeout=30.0) as client:
+                async with httpx.AsyncClient(
+                    timeout=10.0,
+                    limits=httpx.Limits(
+                        max_connections=10,
+                        max_keepalive_connections=5,
+                    ),
+                    follow_redirects=False,
+                ) as client:
                     response = await client.post(
                         webhook["url"],
                         content=body_json,
