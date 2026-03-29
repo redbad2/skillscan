@@ -130,13 +130,21 @@ class LLMConfigManager:
         切换默认LLM提供商
 
         Args:
-            provider: 提供商名称 (openai, anthropic, azure_openai, local)
+            provider: 提供商名称 (openai, anthropic, azure_openai, local, volcengine, custom_openai, custom_anthropic)
             created_by: 操作者
 
         Returns:
             是否成功
         """
-        valid_providers = ["openai", "anthropic", "azure_openai", "local"]
+        valid_providers = [
+            "openai",
+            "anthropic",
+            "azure_openai",
+            "local",
+            "volcengine",
+            "custom_openai",
+            "custom_anthropic",
+        ]
         if provider not in valid_providers:
             logger.error(f"Invalid provider: {provider}")
             return False

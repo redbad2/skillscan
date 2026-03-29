@@ -259,9 +259,23 @@ Only include actual vulnerabilities. If none found, return an empty array for vu
                 return await self._call_azure_openai(prompt, default_config)
             elif default_provider == "local":
                 return await self._call_local_model(prompt, default_config)
+            elif default_provider == "volcengine":
+                return await self._call_volcengine(prompt, default_config)
+            elif default_provider == "custom_openai":
+                return await self._call_custom_openai(prompt, default_config)
+            elif default_provider == "custom_anthropic":
+                return await self._call_custom_anthropic(prompt, default_config)
 
         # 尝试按优先级查找启用的提供商
-        priority = ["anthropic", "openai", "azure_openai", "local"]
+        priority = [
+            "anthropic",
+            "openai",
+            "azure_openai",
+            "local",
+            "volcengine",
+            "custom_openai",
+            "custom_anthropic",
+        ]
         for provider in priority:
             if provider == default_provider:
                 continue
@@ -275,6 +289,12 @@ Only include actual vulnerabilities. If none found, return an empty array for vu
                     return await self._call_azure_openai(prompt, config)
                 elif provider == "local":
                     return await self._call_local_model(prompt, config)
+                elif provider == "volcengine":
+                    return await self._call_volcengine(prompt, config)
+                elif provider == "custom_openai":
+                    return await self._call_custom_openai(prompt, config)
+                elif provider == "custom_anthropic":
+                    return await self._call_custom_anthropic(prompt, config)
 
         # 返回模拟响应用于测试
         logger.warning("No LLM API key configured, returning mock response")
@@ -409,6 +429,139 @@ Only include actual vulnerabilities. If none found, return an empty array for vu
             return self._get_mock_response()
         except Exception as e:
             logger.error(f"Local model API error: {e}")
+            return self._get_mock_response()
+
+    async def _call_volcengine(self, prompt: str, config: Dict[str, Any]) -> str:
+        """
+        调用火山引擎 (Volcengine) LLM API
+
+        火山引擎使用与 OpenAI 兼容的 API 格式
+        API文档: https://www.volcengine.com/docs/82379/1263482
+        """
+        try:
+            from openai import AsyncOpenAI
+
+            client = AsyncOpenAI(
+                api_key=config.get("api_key"),
+                base_url=config.get("base_url", "https://ark.cn-beijing.volces.com/api/v3"),
+                timeout=config.get("timeout", 60),
+            )
+            model = config.get("model", "doubao-pro-32k")
+            temperature = config.get("temperature", 0.1)
+            max_tokens = config.get("max_tokens", 4096)
+
+            response = await client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=max_tokens,
+                temperature=temperature,
+            )
+
+            return response.choices[0].message.content
+
+        except ImportError:
+            logger.error("openai package not installed")
+            return self._get_mock_response()
+        except asyncio.TimeoutError:
+            logger.error(f"Volcengine API timeout")
+            return self._get_mock_response()
+        except Exception as e:
+            logger.error(f"Volcengine API error: {e}")
+            return self._get_mock_response()
+
+    async def _call_custom_openai(self, prompt: str, config: Dict[str, Any]) -> str:
+        """
+        调用自定义 OpenAI 兼容 API 端点
+
+        支持用户配置任何兼容 OpenAI chat completions API 的服务端点，
+        如自托管模型、其他云服务商等。
+
+        Required config:
+        - api_key: API密钥
+        - base_url: API基础URL (例如: https://api.example.com/v1)
+        - model: 模型名称
+        """
+        try:
+            from openai import AsyncOpenAI
+
+            client = AsyncOpenAI(
+                api_key=config.get("api_key"),
+                base_url=config.get("base_url"),
+                timeout=config.get("timeout", 60),
+            )
+            model = config.get("model")
+            temperature = config.get("temperature", 0.1)
+            max_tokens = config.get("max_tokens", 4096)
+
+            if not model:
+                logger.error("Custom OpenAI endpoint requires 'model' parameter")
+                return self._get_mock_response()
+
+            response = await client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=max_tokens,
+                temperature=temperature,
+            )
+
+            return response.choices[0].message.content
+
+        except ImportError:
+            logger.error("openai package not installed")
+            return self._get_mock_response()
+        except asyncio.TimeoutError:
+            logger.error(f"Custom OpenAI endpoint timeout")
+            return self._get_mock_response()
+        except Exception as e:
+            logger.error(f"Custom OpenAI endpoint error: {e}")
+            return self._get_mock_response()
+
+    async def _call_custom_anthropic(self, prompt: str, config: Dict[str, Any]) -> str:
+        """
+        调用自定义 Anthropic 兼容 API 端点
+
+        支持用户配置任何兼容 Anthropic Messages API 的服务端点，
+        如自托管的 Claude 模型或其他服务提供商。
+
+        Required config:
+        - api_key: API密钥
+        - base_url: API基础URL (例如: https://api.example.com/anthropic/v1)
+        - model: 模型名称
+        """
+        try:
+            import anthropic
+
+            client = anthropic.AsyncAnthropic(
+                api_key=config.get("api_key"),
+                base_url=config.get("base_url"),
+                timeout=config.get("timeout", 60),
+            )
+            model = config.get("model")
+            max_tokens = config.get("max_tokens", 4096)
+
+            if not model:
+                logger.error("Custom Anthropic endpoint requires 'model' parameter")
+                return self._get_mock_response()
+
+            response = await asyncio.wait_for(
+                client.messages.create(
+                    model=model,
+                    max_tokens=max_tokens,
+                    messages=[{"role": "user", "content": prompt}],
+                ),
+                timeout=config.get("timeout", 60),
+            )
+
+            return response.content[0].text
+
+        except ImportError:
+            logger.error("anthropic package not installed")
+            return self._get_mock_response()
+        except asyncio.TimeoutError:
+            logger.error(f"Custom Anthropic endpoint timeout")
+            return self._get_mock_response()
+        except Exception as e:
+            logger.error(f"Custom Anthropic endpoint error: {e}")
             return self._get_mock_response()
 
     def _get_mock_response(self) -> str:

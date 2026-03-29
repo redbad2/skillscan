@@ -50,11 +50,48 @@ llm_providers:
     max_tokens: 4096
     timeout: 120  # 本地模型可能更慢
 
+  # 火山引擎 (Volcengine) - Doubao / ByteDance LLM
+  volcengine:
+    enabled: false
+    api_key: ""  # 从环境变量 VOLCENGINE_API_KEY 读取
+    base_url: "https://ark.cn-beijing.volces.com/api/v3"  # 火山引擎 ARK API
+    model: "doubao-pro-32k"  # 默认豆包模型
+    temperature: 0.1
+    max_tokens: 4096
+    timeout: 60
+    retry_count: 3
+    retry_delay: 2
+
+  # 自定义 OpenAI 兼容端点
+  # 支持任何兼容 OpenAI chat completions API 的服务端点
+  custom_openai:
+    enabled: false
+    api_key: ""  # 必填
+    base_url: "https://your-api.example.com/v1"  # 必填，API 基础 URL
+    model: ""  # 必填，模型名称
+    temperature: 0.1
+    max_tokens: 4096
+    timeout: 60
+    retry_count: 3
+    retry_delay: 2
+
+  # 自定义 Anthropic 兼容端点
+  # 支持任何兼容 Anthropic Messages API 的服务端点
+  custom_anthropic:
+    enabled: false
+    api_key: ""  # 必填
+    base_url: "https://your-api.example.com/anthropic/v1"  # 必填，API 基础 URL
+    model: ""  # 必填，模型名称 (如 claude-3-sonnet)
+    max_tokens: 4096
+    timeout: 60
+    retry_count: 3
+    retry_delay: 2
+
 # ==========================================
 # 默认 LLM 选择
 # ==========================================
 
-default_provider: "openai"  # 可选: openai, anthropic, azure_openai, local
+default_provider: "openai"  # 可选: openai, anthropic, azure_openai, local, volcengine, custom_openai, custom_anthropic
 
 # ==========================================
 # LLM 分析配置
